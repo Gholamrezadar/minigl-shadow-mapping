@@ -121,7 +121,7 @@ int main() {
 
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-    glfwSwapInterval(0); // Vsync on: 1, Vsync off: 0
+    glfwSwapInterval(1); // Vsync on: 1, Vsync off: 0
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         std::cerr << "Failed to initialize GLAD\n";
@@ -235,24 +235,24 @@ int main() {
     // Create multisampled FBO
     GLuint msFBO;
     glGenFramebuffers(1, &msFBO);
-    glBindFramebuffer(GL_FRAMEBUFFER, msFBO);
-
     int old_width = WIDTH;
     int old_height = HEIGHT;
+    const int MSAA_SAMPLES = 4;
+    glBindFramebuffer(GL_FRAMEBUFFER, msFBO);
+        // Color renderbuffer for MSAA FBO
+        GLuint msColorBuffer;
+        glGenRenderbuffers(1, &msColorBuffer);
+        glBindRenderbuffer(GL_RENDERBUFFER, msColorBuffer);
+        glRenderbufferStorageMultisample(GL_RENDERBUFFER, MSAA_SAMPLES, GL_RGBA8, WIDTH, HEIGHT);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, msColorBuffer);
 
-    // Color renderbuffer for MSAA FBO
-    GLuint msColorBuffer;
-    glGenRenderbuffers(1, &msColorBuffer);
-    glBindRenderbuffer(GL_RENDERBUFFER, msColorBuffer);
-    glRenderbufferStorageMultisample(GL_RENDERBUFFER, 8, GL_RGBA8, WIDTH, HEIGHT); // 8x MSAA
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, msColorBuffer);
-
-    // Depth renderbuffer for MSAA FBO
-    GLuint msDepthBuffer;
-    glGenRenderbuffers(1, &msDepthBuffer);
-    glBindRenderbuffer(GL_RENDERBUFFER, msDepthBuffer);
-    glRenderbufferStorageMultisample(GL_RENDERBUFFER, 8, GL_DEPTH24_STENCIL8, WIDTH, HEIGHT); // 8x MSAA
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, msDepthBuffer);
+        // Depth renderbuffer for MSAA FBO
+        GLuint msDepthBuffer;
+        glGenRenderbuffers(1, &msDepthBuffer);
+        glBindRenderbuffer(GL_RENDERBUFFER, msDepthBuffer);
+        glRenderbufferStorageMultisample(GL_RENDERBUFFER, MSAA_SAMPLES, GL_DEPTH24_STENCIL8, WIDTH, HEIGHT);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, msDepthBuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // FPS stats
     int frame_count = 0;
@@ -264,8 +264,8 @@ int main() {
         frame_count++;
         glfwPollEvents();
 
-        // Default buffer setup
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        // Enable the MSAA FBO
+        glBindFramebuffer(GL_FRAMEBUFFER, msFBO);
 
         // Imgui stuff
         ImGui_ImplOpenGL3_NewFrame();
@@ -316,17 +316,25 @@ int main() {
 
         // set uniforms for shaderProgram
         glUseProgram(shaderProgram);
-        uMatrix = projection * view * model;
-        glUniformMatrix4fv(uMatrixLoc, 1, GL_FALSE, glm::value_ptr(uMatrix));
+            uMatrix = projection * view * model;
+            glUniformMatrix4fv(uMatrixLoc, 1, GL_FALSE, glm::value_ptr(uMatrix));
 
         // Render the mesh using the default shader
-        glEnable(GL_CULL_FACE);           // Enable face culling
-        glCullFace(GL_BACK);             // Cull front faces → only backfaces are drawn
         glUseProgram(shaderProgram);
-        glBindVertexArray(VAO);
-        glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(unsigned int), GL_UNSIGNED_INT, 0);
+            glBindVertexArray(VAO);
+            glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(unsigned int), GL_UNSIGNED_INT, 0);
+        
+        // Draw the MSAA FBO to the default FBO
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, msFBO);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        glBlitFramebuffer(
+            0, 0, WIDTH, HEIGHT,
+            0, 0, WIDTH, HEIGHT,
+            GL_COLOR_BUFFER_BIT,
+            GL_NEAREST
+        );
 
-        // Imgui render
+        // Imgui render on the resolved FBO
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(window);
@@ -335,8 +343,8 @@ int main() {
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
-
     glfwDestroyWindow(window);
     glfwTerminate();
+
     return 0;
 }
