@@ -32,7 +32,7 @@ GLuint msFBO;
 
 
 /// UTILS ///
-std::string readFile(const std::string& filePath) {
+std::string read_file(const std::string& filePath) {
     std::ifstream file(filePath);
     std::stringstream ss;
 
@@ -45,7 +45,7 @@ std::string readFile(const std::string& filePath) {
     return ss.str();
 }
 
-GLuint compileShader(GLenum type, const std::string& source, const std::string& shaderPath) {
+GLuint compile_shader(GLenum type, const std::string& source, const std::string& shaderPath) {
     GLuint shader = glCreateShader(type);
     const char* src = source.c_str();
 
@@ -68,16 +68,16 @@ GLuint compileShader(GLenum type, const std::string& source, const std::string& 
     return shader;
 }
 
-GLuint createProgram(const std::string& vertexPath, const std::string& fragmentPath) {
-    std::string vertexCode = readFile(vertexPath);
-    std::string fragmentCode = readFile(fragmentPath);
+GLuint create_program(const std::string& vertexPath, const std::string& fragmentPath) {
+    std::string vertexCode = read_file(vertexPath);
+    std::string fragmentCode = read_file(fragmentPath);
 
     if (vertexCode.empty() || fragmentCode.empty()) {
         return 0;
     }
 
-    GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexCode, vertexPath);
-    GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentCode, fragmentPath);
+    GLuint vertexShader = compile_shader(GL_VERTEX_SHADER, vertexCode, vertexPath);
+    GLuint fragmentShader = compile_shader(GL_FRAGMENT_SHADER, fragmentCode, fragmentPath);
 
     if (vertexShader == 0 || fragmentShader == 0) {
         return 0;
@@ -110,16 +110,16 @@ GLuint createProgram(const std::string& vertexPath, const std::string& fragmentP
 
 
 /// SYSTEM ///
-GLuint CreateMSAAFBO(int, int, int);
+GLuint create_MSAA_FBO(int, int, int);
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     WIDTH = width;
     HEIGHT = height;
-    msFBO = CreateMSAAFBO(WIDTH, HEIGHT, 4);
+    msFBO = create_MSAA_FBO(WIDTH, HEIGHT, 4);
     glViewport(0, 0, width, height);
 
 }
 
-GLFWwindow* InitWindow(int width, int height) {
+GLFWwindow* init_window(int width, int height) {
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW\n";
         return nullptr;
@@ -161,7 +161,7 @@ GLFWwindow* InitWindow(int width, int height) {
     return window;
 }
 
-void Cleanup(GLFWwindow* window) {
+void cleanup(GLFWwindow* window) {
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
@@ -171,7 +171,7 @@ void Cleanup(GLFWwindow* window) {
 
 
 /// MSAA ///
-GLuint CreateMSAAFBO(int width, int height, int samples) {
+GLuint create_MSAA_FBO(int width, int height, int samples) {
     // Create multisampled FBO
     GLuint msFBO;
     glGenFramebuffers(1, &msFBO);
@@ -196,7 +196,7 @@ GLuint CreateMSAAFBO(int width, int height, int samples) {
     return msFBO;
 }
 
-void ResolveMSAA(GLuint msFBO, int width, int height) {
+void resolve_MSAA(GLuint msFBO, int width, int height) {
     glBindFramebuffer(GL_READ_FRAMEBUFFER, msFBO);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     glBlitFramebuffer(
@@ -209,7 +209,7 @@ void ResolveMSAA(GLuint msFBO, int width, int height) {
 
 
 /// UI ///
-void BuildUI(State &state) {
+void build_UI(State &state) {
     // Imgui stuff
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
@@ -230,7 +230,7 @@ void BuildUI(State &state) {
     ImGui::Render();
 }
 
-void RenderUI() {
+void render_UI() {
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
@@ -244,7 +244,7 @@ struct Mesh {
     GLsizei indexCount = 0;
 };
 
-Mesh CreateMesh(const float* vertices, size_t vertexBytes, const unsigned int* indices, size_t indexBytes) {
+Mesh create_mesh(const float* vertices, size_t vertexBytes, const unsigned int* indices, size_t indexBytes) {
     Mesh mesh;
 
     glGenVertexArrays(1, &mesh.vao);
@@ -287,7 +287,7 @@ Mesh CreateMesh(const float* vertices, size_t vertexBytes, const unsigned int* i
     return mesh;
 }
 
-Mesh CreateCube() {
+Mesh create_cube() {
     // Cube data position | normal | uv
     static float vertices[] = {
     // positions           // normals         // texture coords
@@ -343,7 +343,7 @@ Mesh CreateCube() {
         20,21,22, 22,23,20
     };
 
-    return CreateMesh(
+    return create_mesh(
         vertices,
         sizeof(vertices),
         indices,
@@ -351,7 +351,7 @@ Mesh CreateCube() {
     );
 }
 
-void DrawMesh(const Mesh& mesh) {
+void draw_mesh(const Mesh& mesh) {
     glBindVertexArray(mesh.vao);
 
     glDrawElements(
@@ -363,20 +363,20 @@ void DrawMesh(const Mesh& mesh) {
 }
 
 /// Shaders ///  
-GLuint CreateShader() {
-    unsigned int shaderProgram = createProgram("shaders/simple.vert", "shaders/simple.frag");
+GLuint create_default_shader() {
+    unsigned int shaderProgram = create_program("shaders/simple.vert", "shaders/simple.frag");
     glUseProgram(shaderProgram);
     return shaderProgram;
 }
 
 int main() {
-    GLFWwindow* window = InitWindow(WIDTH, HEIGHT);
+    GLFWwindow* window = init_window(WIDTH, HEIGHT);
 
     State state = {
         .a = 0.0f,
         .fov = 45.0f,
         .z = 3.0f,
-        .frame_count = 0,
+        .frame_count = 1,
         .sum_fps = 0.0f,
         .avg_fps = 0.0f,
         .msaa = true 
@@ -387,17 +387,17 @@ int main() {
     glDepthFunc(GL_LESS);
 
     if(state.msaa) {
-        msFBO = CreateMSAAFBO(WIDTH, HEIGHT, 4);
+        msFBO = create_MSAA_FBO(WIDTH, HEIGHT, 4);
     }
     
     // Shader
-    GLuint shaderProgram = CreateShader();
+    GLuint shaderProgram = create_default_shader();
         GLint uMatrixLoc = glGetUniformLocation(shaderProgram, "uMatrix");
         glm::mat4 uMatrix = glm::mat4(1.0f);
         glUniformMatrix4fv(uMatrixLoc, 1, GL_FALSE, glm::value_ptr(uMatrix));
 
     // Scene
-    Mesh cube = CreateCube();
+    Mesh cube = create_cube();
 
     // Render Loop
     while (!glfwWindowShouldClose(window)) {
@@ -416,7 +416,7 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // UI
-        BuildUI(state);
+        build_UI(state);
 
         // PROJECTION
         glm::mat4 projection = glm::perspective(
@@ -444,18 +444,20 @@ int main() {
             glUseProgram(shaderProgram);
                 uMatrix = projection * view * model;
                 glUniformMatrix4fv(uMatrixLoc, 1, GL_FALSE, glm::value_ptr(uMatrix));
-                DrawMesh(cube);
+                draw_mesh(cube);
         }
         
         if(state.msaa) {
-            ResolveMSAA(msFBO, WIDTH, HEIGHT);
+            resolve_MSAA(msFBO, WIDTH, HEIGHT);
         }
-        RenderUI();
+
+        render_UI();
+
         glfwSwapBuffers(window);
         state.frame_count++;
     }
 
-    Cleanup(window);
+    cleanup(window);
 
     return 0;
 }
