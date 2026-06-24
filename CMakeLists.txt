@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 4.0.0)
 project(minigl_hello_triangle)
 set(CMAKE_CXX_STANDARD 20)
 
-set(TARGET_NAME "minigl_hello_triangle")
+set(TARGET_NAME "minigl_shadow_mapping")
 
 # build GLFW (static by default)
 add_subdirectory(vendor/glfw)
