@@ -133,6 +133,10 @@ int main() {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     ImGui::StyleColorsDark();
+    io.Fonts->AddFontFromFileTTF(
+        "resources/FiraCode-Regular.ttf",
+        16.0f
+    );
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 440");
 
