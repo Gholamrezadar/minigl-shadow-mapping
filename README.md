@@ -4,7 +4,20 @@ Exploring *Shadow Mapping* and it's various problems. for other examples search 
 
 ![demo](demos/minigl-hello-cube.png)
 
-## References
+## TODO
+
+- [x] Cube
+- [ ] Plane
+- [ ] Sphere
+- [ ] Cylinder
+- [ ] Blinn-Phong
+- [ ] Camera Movement
+- [ ] Shadow Mapping
+- [ ] Bias
+- [ ] Normal Bias
+- [ ] PCF
+- [ ] PCSS
+- [ ] Jitter
 
 Reference screenshots from Blender
 |Name|Image|
