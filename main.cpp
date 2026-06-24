@@ -18,6 +18,12 @@
 int WIDTH = 1280;
 int HEIGHT = 720;
 
+enum MSAA_SAMPLES {
+    MSAA_SAMPLES_4 = 4,
+    MSAA_SAMPLES_8 = 8,
+    MSAA_SAMPLES_16 = 16
+};
+
 struct State {
     float a;
     float fov;
@@ -26,6 +32,18 @@ struct State {
     float sum_fps;
     float avg_fps;
     bool msaa;
+    MSAA_SAMPLES msaa_samples;
+};
+
+State state = {
+    .a = 0.0f,
+    .fov = 45.0f,
+    .z = 3.0f,
+    .frame_count = 1,
+    .sum_fps = 0.0f,
+    .avg_fps = 0.0f,
+    .msaa = true,
+    .msaa_samples = MSAA_SAMPLES_4 
 };
 
 GLuint msFBO;
@@ -114,7 +132,7 @@ GLuint create_MSAA_FBO(int, int, int);
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     WIDTH = width;
     HEIGHT = height;
-    msFBO = create_MSAA_FBO(WIDTH, HEIGHT, 4);
+    msFBO = create_MSAA_FBO(WIDTH, HEIGHT, state.msaa_samples);
     glViewport(0, 0, width, height);
 
 }
@@ -225,6 +243,45 @@ void build_UI(State &state) {
     ImGui::SliderFloat("a", &state.a, 0.0f, 360.0f);
     ImGui::SliderFloat("fov", &state.fov, 0.0f, 360.0f);
     ImGui::SliderFloat("z", &state.z, -10.0f, 10.0f);
+
+    ImGui::Separator();
+
+    // MSAA toggle
+    ImGui::Checkbox("MSAA", &state.msaa);
+    
+    // MSAA samples
+    static const char* msaa_samples_names[] = {
+        "4",
+        "8",
+        "16"
+    };
+
+    // Convert enum -> combo index
+    int current_msaa_index = 0;
+    switch (state.msaa_samples) {
+    case MSAA_SAMPLES_4:  current_msaa_index = 0; break;
+    case MSAA_SAMPLES_8:  current_msaa_index = 1; break;
+    case MSAA_SAMPLES_16: current_msaa_index = 2; break;
+    }
+
+    if (ImGui::Combo(
+        "MSAA Samples",
+        &current_msaa_index,
+        msaa_samples_names,
+        IM_ARRAYSIZE(msaa_samples_names)))
+    {
+        // Convert combo index -> enum
+        switch (current_msaa_index) {
+        case 0: state.msaa_samples = MSAA_SAMPLES_4;  break;
+        case 1: state.msaa_samples = MSAA_SAMPLES_8;  break;
+        case 2: state.msaa_samples = MSAA_SAMPLES_16; break;
+        }
+
+        // Recreate MSAA FBO
+        if (state.msaa) {
+            msFBO = create_MSAA_FBO(WIDTH, HEIGHT, state.msaa_samples);
+        }
+    }
     
     ImGui::End();
     ImGui::Render();
@@ -372,22 +429,13 @@ GLuint create_default_shader() {
 int main() {
     GLFWwindow* window = init_window(WIDTH, HEIGHT);
 
-    State state = {
-        .a = 0.0f,
-        .fov = 45.0f,
-        .z = 3.0f,
-        .frame_count = 1,
-        .sum_fps = 0.0f,
-        .avg_fps = 0.0f,
-        .msaa = true 
-    };
     
     // Enable Depth
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
 
     if(state.msaa) {
-        msFBO = create_MSAA_FBO(WIDTH, HEIGHT, 4);
+        msFBO = create_MSAA_FBO(WIDTH, HEIGHT, state.msaa_samples);
     }
     
     // Shader
