@@ -28,22 +28,22 @@ enum MSAA_SAMPLES {
 struct PrimitiveState {
     bool visible = true;
 
-    glm::vec3 position = glm::vec3(0.0f);
-    glm::vec3 scale    = glm::vec3(1.0f);
+    glm::vec3 position;
+    glm::vec3 scale;
 };
 
 struct CameraState {
-    glm::vec3 position = glm::vec3(0.0f, 0.0f, 3.0f);
-    glm::vec3 target   = glm::vec3(0.0f);
-    float fov = 35.0f;
+    glm::vec3 position;
+    glm::vec3 target;
+    float fov;
 };
 
 struct DirectionalLight {
-    glm::vec3 direction = glm::vec3(0.0f, 0.0f, 3.0f);
-    glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f);
-    glm::vec3 ambient = glm::vec3(0.075f, 0.161f, 0.235f);
-    float intensity = 2.3f;
-    float size = 0.001f;
+    glm::vec3 direction;
+    glm::vec3 color;
+    glm::vec3 ambient;
+    float intensity;
+    float size;
 };
 
 struct State {
@@ -81,7 +81,7 @@ State state = {
         .direction = glm::vec3(15.0f, -8.0f, 10.0f),
         .color = glm::vec3(1.0f, 1.0f, 1.0f),
         .ambient = glm::vec3(0.075f, 0.161f, 0.235f),
-        .intensity = 3.0f,
+        .intensity = 0.8f,
         .size = 0.001f
     },
     .a = 0.0f,

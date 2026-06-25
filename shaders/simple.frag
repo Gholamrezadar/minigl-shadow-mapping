@@ -37,7 +37,7 @@ void main() {
 
     // specular
     float NdotH = max(dot(N, H), 0.0);
-    float shininess = 32.0;
+    float shininess = 64.0;
     float spec = pow(NdotH, shininess);
     vec3 specular = uLightColor * spec * 0.25;
 
