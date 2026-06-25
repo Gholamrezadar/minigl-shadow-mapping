@@ -41,7 +41,7 @@ struct CameraState {
 struct DirectionalLight {
     glm::vec3 direction = glm::vec3(0.0f, 0.0f, 3.0f);
     glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f);
-    glm::vec3 ambient = glm::vec3(0.1f, 0.1f, 0.1f);
+    glm::vec3 ambient = glm::vec3(0.075f, 0.161f, 0.235f);
     float intensity = 2.3f;
     float size = 0.001f;
 };
@@ -80,7 +80,7 @@ State state = {
     .light = {
         .direction = glm::vec3(15.0f, -8.0f, 10.0f),
         .color = glm::vec3(1.0f, 1.0f, 1.0f),
-        .ambient = glm::vec3(0.1f, 0.1f, 0.1f),
+        .ambient = glm::vec3(0.075f, 0.161f, 0.235f),
         .intensity = 3.0f,
         .size = 0.001f
     },
@@ -844,8 +844,6 @@ void send_light_camera_data_to_shader(GLuint shaderProgram, const State& state) 
 int main() {
     GLFWwindow* window = init_window(WIDTH, HEIGHT);
 
-    state.light.ambient = state.clear_color*0.8f;
-    
     // Enable Depth
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);

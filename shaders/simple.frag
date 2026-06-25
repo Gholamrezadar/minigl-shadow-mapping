@@ -10,6 +10,8 @@ uniform float uLightIntensity;
 uniform vec3 uLightAmbient;
 uniform float uLightSize;
 
+// TODO: shininess uniform
+
 // camera
 uniform vec3 uCameraPos;
 
@@ -18,6 +20,7 @@ out vec4 FragColor;
 vec3 toneMapReinhard(vec3 x) {
     return x / (x + vec3(1.0));
 }
+
 
 void main() {
     vec3 N = normalize(normal);
