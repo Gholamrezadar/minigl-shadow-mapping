@@ -14,6 +14,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 int WIDTH = 1280;
 int HEIGHT = 720;
@@ -24,26 +25,77 @@ enum MSAA_SAMPLES {
     MSAA_SAMPLES_16 = 16
 };
 
+struct PrimitiveState {
+    bool visible = true;
+
+    glm::vec3 position = glm::vec3(0.0f);
+    glm::vec3 scale    = glm::vec3(1.0f);
+};
+
+struct CameraState {
+    glm::vec3 position = glm::vec3(0.0f, 0.0f, 3.0f);
+    glm::vec3 target   = glm::vec3(0.0f);
+    float fov = 35.0f;
+};
+
 struct State {
+    glm::vec3 clear_color;
+
+    CameraState camera;
+
     float a;
-    float fov;
-    float z;
+
     int frame_count;
     float sum_fps;
     float avg_fps;
+
     bool msaa;
     MSAA_SAMPLES msaa_samples;
+
+    bool wireframe;
+
+    PrimitiveState cube;
+    PrimitiveState plane;
+    PrimitiveState sphere;
+    PrimitiveState cylinder;
 };
 
 State state = {
+    .clear_color = glm::vec3(0.28f, 0.35f, 0.4f),
+    .camera = {
+        .position = glm::vec3(-1.5f, 1.1f, 3.3f),
+        .target   = glm::vec3(0.176f, -0.8f, -0.1f),
+        .fov = 41.0f
+    },
     .a = 0.0f,
-    .fov = 45.0f,
-    .z = 3.0f,
     .frame_count = 1,
     .sum_fps = 0.0f,
     .avg_fps = 0.0f,
     .msaa = true,
-    .msaa_samples = MSAA_SAMPLES_4 
+    .msaa_samples = MSAA_SAMPLES_4 ,
+    .wireframe = false,
+    .cube = {
+        .visible = true,
+        .position = glm::vec3(0.0f, -0.25f, 0.0f),
+        .scale = glm::vec3(0.5f)
+    },
+    .plane = {
+        .visible = true,
+        .position = glm::vec3(0.0f, -0.5f, 0.0f),
+        .scale = glm::vec3(3.0f)
+    },
+    .sphere = {
+        // .visible = true,
+        .visible = false,
+        .position = glm::vec3(-0.8f, -0.25f, 0.0f),
+        .scale = glm::vec3(0.5f)
+    },
+    .cylinder = {
+        // .visible = true,
+        .visible = false,
+        .position = glm::vec3(0.7f, 0.0f, 0.0f),
+        .scale = glm::vec3(0.1f, 1.0f, 0.1f)
+    }
 };
 
 GLuint msFBO;
@@ -239,50 +291,109 @@ void build_UI(State &state) {
     state.sum_fps += ImGui::GetIO().Framerate;
     state.avg_fps = state.sum_fps / state.frame_count;
 
-    // Sliders
-    ImGui::SliderFloat("a", &state.a, 0.0f, 360.0f);
-    ImGui::SliderFloat("fov", &state.fov, 0.0f, 360.0f);
-    ImGui::SliderFloat("z", &state.z, -10.0f, 10.0f);
+    if(ImGui::BeginTabBar("Settings")) {
+        if(ImGui::BeginTabItem("Camera")) {
+            // Sliders
+            ImGui::SliderFloat("fov", &state.camera.fov, 0.0f, 360.0f);
+            ImGui::DragFloat3("Position", &state.camera.position.x, 0.1f);
+            ImGui::DragFloat3("Target", &state.camera.target.x, 0.1f);
 
-    ImGui::Separator();
-
-    // MSAA toggle
-    ImGui::Checkbox("MSAA", &state.msaa);
-    
-    // MSAA samples
-    static const char* msaa_samples_names[] = {
-        "4",
-        "8",
-        "16"
-    };
-
-    // Convert enum -> combo index
-    int current_msaa_index = 0;
-    switch (state.msaa_samples) {
-    case MSAA_SAMPLES_4:  current_msaa_index = 0; break;
-    case MSAA_SAMPLES_8:  current_msaa_index = 1; break;
-    case MSAA_SAMPLES_16: current_msaa_index = 2; break;
-    }
-
-    if (ImGui::Combo(
-        "MSAA Samples",
-        &current_msaa_index,
-        msaa_samples_names,
-        IM_ARRAYSIZE(msaa_samples_names)))
-    {
-        // Convert combo index -> enum
-        switch (current_msaa_index) {
-        case 0: state.msaa_samples = MSAA_SAMPLES_4;  break;
-        case 1: state.msaa_samples = MSAA_SAMPLES_8;  break;
-        case 2: state.msaa_samples = MSAA_SAMPLES_16; break;
+           ImGui::EndTabItem();
         }
 
-        // Recreate MSAA FBO
-        if (state.msaa) {
-            msFBO = create_MSAA_FBO(WIDTH, HEIGHT, state.msaa_samples);
+        if(ImGui::BeginTabItem("Scene")) {
+
+            ImGui::SliderFloat("Z Rotation", &state.a, 0.0f, 360.0f);
+
+            // Plane
+            if (ImGui::TreeNodeEx("Plane", ImGuiTreeNodeFlags_DefaultOpen)) {
+                ImGui::Checkbox("Visible##Plane", &state.plane.visible);
+                ImGui::DragFloat3("Position##Plane", &state.plane.position.x, 0.1f);
+                ImGui::DragFloat3("Scale##Plane", &state.plane.scale.x, 0.1f);
+                ImGui::TreePop();
+            }
+
+            // Cube
+            if (ImGui::TreeNodeEx("Cube", ImGuiTreeNodeFlags_DefaultOpen)) {
+                ImGui::Checkbox("Visible##Cube", &state.cube.visible);
+                ImGui::DragFloat3("Position##Cube", &state.cube.position.x, 0.1f);
+                ImGui::DragFloat3("Scale##Cube", &state.cube.scale.x, 0.1f);
+                ImGui::TreePop();
+            }
+
+            // Sphere
+            if (ImGui::TreeNodeEx("Sphere", ImGuiTreeNodeFlags_DefaultOpen)) {
+                ImGui::Checkbox("Visible##Sphere", &state.sphere.visible);
+                ImGui::DragFloat3("Position##Sphere", &state.sphere.position.x, 0.1f);
+                ImGui::DragFloat3("Scale##Sphere", &state.sphere.scale.x, 0.1f);
+                ImGui::TreePop();
+            }
+
+            // Cylinder
+            if (ImGui::TreeNodeEx("Cylinder", ImGuiTreeNodeFlags_DefaultOpen)) {
+                ImGui::Checkbox("Visible##Cylinder", &state.cylinder.visible);
+                ImGui::DragFloat3("Position##Cylinder", &state.cylinder.position.x, 0.1f);
+                ImGui::DragFloat3("Scale##Cylinder", &state.cylinder.scale.x, 0.1f);
+                ImGui::TreePop();
+            }
+           ImGui::EndTabItem();
         }
+
+        if(ImGui::BeginTabItem("Lighting")) {
+            ImGui::ColorEdit3("Clear Color", &state.clear_color.x);
+            if(ImGui::TreeNode("Directional Light")) {
+                ImGui::Text("Not implemented yet");
+                ImGui::TreePop();
+            }
+            ImGui::EndTabItem();
+        }
+        if(ImGui::BeginTabItem("Rendering")) {
+
+            // Wireframe
+            ImGui::Checkbox("Wireframe", &state.wireframe);
+
+            // MSAA
+            ImGui::Checkbox("MSAA", &state.msaa);
+            
+            // MSAA samples
+            static const char* msaa_samples_names[] = {
+                "4",
+                "8",
+                "16"
+            };
+
+            // Convert enum to combo index
+            int current_msaa_index = 0;
+            switch (state.msaa_samples) {
+                case MSAA_SAMPLES_4:  current_msaa_index = 0; break;
+                case MSAA_SAMPLES_8:  current_msaa_index = 1; break;
+                case MSAA_SAMPLES_16: current_msaa_index = 2; break;
+            }
+
+            if (ImGui::Combo(
+                "MSAA Samples",
+                &current_msaa_index,
+                msaa_samples_names,
+                IM_ARRAYSIZE(msaa_samples_names)))
+            {
+                // Convert combo index -> enum
+                switch (current_msaa_index) {
+                case 0: state.msaa_samples = MSAA_SAMPLES_4;  break;
+                case 1: state.msaa_samples = MSAA_SAMPLES_8;  break;
+                case 2: state.msaa_samples = MSAA_SAMPLES_16; break;
+                }
+
+                // Recreate MSAA FBO
+                if (state.msaa) {
+                    msFBO = create_MSAA_FBO(WIDTH, HEIGHT, state.msaa_samples);
+                }
+            }
+            
+            ImGui::EndTabItem();
+        }
+        ImGui::EndTabBar();
     }
-    
+
     ImGui::End();
     ImGui::Render();
 }
@@ -344,10 +455,22 @@ Mesh create_mesh(const float* vertices, size_t vertexBytes, const unsigned int* 
     return mesh;
 }
 
+void draw_mesh(const Mesh& mesh) {
+    glBindVertexArray(mesh.vao);
+
+    glDrawElements(
+        GL_TRIANGLES,
+        mesh.indexCount,
+        GL_UNSIGNED_INT,
+        nullptr
+    );
+}
+
+
+/// Primitives ///
 Mesh create_cube() {
-    // Cube data position | normal | uv
     static float vertices[] = {
-    // positions           // normals         // texture coords
+    // pos           // normal         // uv
     // Front face
     -0.5f, -0.5f,  0.5f,   0.0f, 0.0f, 1.0f,   0.0f, 0.0f,
      0.5f, -0.5f,  0.5f,   0.0f, 0.0f, 1.0f,   1.0f, 0.0f,
@@ -408,15 +531,239 @@ Mesh create_cube() {
     );
 }
 
-void draw_mesh(const Mesh& mesh) {
-    glBindVertexArray(mesh.vao);
+Mesh create_plane()
+{
+    static float vertices[] = {
+        // pos                 normal          uv
+        -0.5f, 0.0f, -0.5f,    0,1,0,          0,0,
+         0.5f, 0.0f, -0.5f,    0,1,0,          1,0,
+         0.5f, 0.0f,  0.5f,    0,1,0,          1,1,
+        -0.5f, 0.0f,  0.5f,    0,1,0,          0,1,
+    };
 
-    glDrawElements(
-        GL_TRIANGLES,
-        mesh.indexCount,
-        GL_UNSIGNED_INT,
-        nullptr
+    static unsigned int indices[] = {
+        0,1,2,
+        2,3,0
+    };
+
+    return create_mesh(
+        vertices,
+        sizeof(vertices),
+        indices,
+        sizeof(indices)
     );
+}
+
+Mesh create_sphere(int rows, int cols)
+{
+    std::vector<float> vertices;
+    std::vector<unsigned int> indices;
+
+    const float radius = 0.5f;
+
+    for (int y = 0; y <= rows; y++)
+    {
+        float v = (float)y / rows;
+        float phi = v * glm::pi<float>();
+
+        for (int x = 0; x <= cols; x++)
+        {
+            float u = (float)x / cols;
+            float theta = u * glm::two_pi<float>();
+
+            float sx = sin(phi) * cos(theta);
+            float sy = cos(phi);
+            float sz = sin(phi) * sin(theta);
+
+            // Position
+            vertices.push_back(radius * sx);
+            vertices.push_back(radius * sy);
+            vertices.push_back(radius * sz);
+
+            // Normal
+            vertices.push_back(sx);
+            vertices.push_back(sy);
+            vertices.push_back(sz);
+
+            // UV
+            vertices.push_back(u);
+            vertices.push_back(v);
+        }
+    }
+
+    for (int y = 0; y < rows; y++)
+    {
+        for (int x = 0; x < cols; x++)
+        {
+            int a = y * (cols + 1) + x;
+            int b = a + cols + 1;
+
+            indices.push_back(a);
+            indices.push_back(b);
+            indices.push_back(a + 1);
+
+            indices.push_back(a + 1);
+            indices.push_back(b);
+            indices.push_back(b + 1);
+        }
+    }
+
+    return create_mesh(
+        vertices.data(),
+        vertices.size() * sizeof(float),
+        indices.data(),
+        indices.size() * sizeof(unsigned int)
+    );
+}
+
+Mesh create_cylinder(int rows, int cols)
+{
+    std::vector<float> vertices;
+    std::vector<unsigned int> indices;
+
+    const float radius = 0.5f;
+    const float halfHeight = 0.5f;
+
+    // Side vertices
+    for (int y = 0; y <= rows; y++)
+    {
+        float v = (float)y / rows;
+        float py = glm::mix(-halfHeight, halfHeight, v);
+
+        for (int x = 0; x <= cols; x++)
+        {
+            float u = (float)x / cols;
+            float theta = u * glm::two_pi<float>();
+
+            float nx = cos(theta);
+            float nz = sin(theta);
+
+            vertices.push_back(radius * nx);
+            vertices.push_back(py);
+            vertices.push_back(radius * nz);
+
+            vertices.push_back(nx);
+            vertices.push_back(0.0f);
+            vertices.push_back(nz);
+
+            vertices.push_back(u);
+            vertices.push_back(v);
+        }
+    }
+
+    // Side indices
+    for (int y = 0; y < rows; y++)
+    {
+        for (int x = 0; x < cols; x++)
+        {
+            int a = y * (cols + 1) + x;
+            int b = a + cols + 1;
+
+            indices.push_back(a);
+            indices.push_back(b);
+            indices.push_back(a + 1);
+
+            indices.push_back(a + 1);
+            indices.push_back(b);
+            indices.push_back(b + 1);
+        }
+    }
+
+    unsigned int topCenter =
+        (unsigned int)(vertices.size() / 8);
+
+    // Top center
+    vertices.insert(vertices.end(), {
+        0, halfHeight, 0,
+        0,1,0,
+        0.5f,0.5f
+    });
+
+    for (int x = 0; x <= cols; x++)
+    {
+        float u = (float)x / cols;
+        float theta = u * glm::two_pi<float>();
+
+        float px = radius * cos(theta);
+        float pz = radius * sin(theta);
+
+        vertices.insert(vertices.end(), {
+            px, halfHeight, pz,
+            0,1,0,
+            px + 0.5f, pz + 0.5f
+        });
+    }
+
+    for (int x = 0; x < cols; x++)
+    {
+        indices.push_back(topCenter);
+        indices.push_back(topCenter + x + 1);
+        indices.push_back(topCenter + x + 2);
+    }
+
+    unsigned int bottomCenter =
+        (unsigned int)(vertices.size() / 8);
+
+    vertices.insert(vertices.end(), {
+        0,-halfHeight,0,
+        0,-1,0,
+        0.5f,0.5f
+    });
+
+    for (int x = 0; x <= cols; x++)
+    {
+        float u = (float)x / cols;
+        float theta = u * glm::two_pi<float>();
+
+        float px = radius * cos(theta);
+        float pz = radius * sin(theta);
+
+        vertices.insert(vertices.end(), {
+            px,-halfHeight,pz,
+            0,-1,0,
+            px + 0.5f,pz + 0.5f
+        });
+    }
+
+    for (int x = 0; x < cols; x++)
+    {
+        indices.push_back(bottomCenter);
+        indices.push_back(bottomCenter + x + 2);
+        indices.push_back(bottomCenter + x + 1);
+    }
+
+    return create_mesh(
+        vertices.data(),
+        vertices.size() * sizeof(float),
+        indices.data(),
+        indices.size() * sizeof(unsigned int)
+    );
+}
+
+void draw_primitive(
+    const Mesh& mesh,
+    const PrimitiveState& primitive,
+    GLuint shaderProgram,
+    GLint uMatrixLoc,
+    const glm::mat4& projection,
+    const glm::mat4& view,
+    float angle)
+{
+    if (!primitive.visible)
+        return;
+
+    glm::mat4 model = glm::mat4(1.0f);
+
+    model = glm::translate(model, primitive.position);
+    model = glm::rotate(model, glm::radians(angle), glm::vec3(0, 1, 0));
+    model = glm::scale(model, primitive.scale);
+
+    glm::mat4 mvp = projection * view * model;
+
+    glUseProgram(shaderProgram);
+    glUniformMatrix4fv(uMatrixLoc, 1, GL_FALSE, glm::value_ptr(mvp));
+
+    draw_mesh(mesh);
 }
 
 /// Shaders ///  
@@ -428,7 +775,6 @@ GLuint create_default_shader() {
 
 int main() {
     GLFWwindow* window = init_window(WIDTH, HEIGHT);
-
     
     // Enable Depth
     glEnable(GL_DEPTH_TEST);
@@ -446,29 +792,34 @@ int main() {
 
     // Scene
     Mesh cube = create_cube();
+    Mesh plane = create_plane();
+    Mesh sphere = create_sphere(32, 32);
+    Mesh cylinder = create_cylinder(8, 32);
 
     // Render Loop
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
 
-        if(state.msaa) {
+        if(state.msaa) 
             glBindFramebuffer(GL_FRAMEBUFFER, msFBO);
-        }
-        else {
+        else 
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        }
 
         // Clear the screen
         glViewport(0, 0, WIDTH, HEIGHT);
-        glClearColor(0.3f, 0.5f, 0.7f, 1.0f);
+        glClearColor(state.clear_color.x, state.clear_color.y, state.clear_color.z, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // UI
         build_UI(state);
 
+        if (state.wireframe)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        else
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
         // PROJECTION
         glm::mat4 projection = glm::perspective(
-            glm::radians(state.fov),
+            glm::radians(state.camera.fov),
             static_cast<float>(WIDTH) / static_cast<float>(HEIGHT),
             0.1f,
             100.0f
@@ -476,25 +827,16 @@ int main() {
 
         // VIEW
         glm::mat4 view = glm::lookAt(
-            glm::vec3(0.0f, 0.0f, state.z), // camera position
-            glm::vec3(0.0f, 0.0f, 0.0f), // look at
+            state.camera.position, // camera position
+            state.camera.target,   // look at
             glm::vec3(0.0f, 1.0f, 0.0f)  // up
         );
 
-        // Cube
-        {
-            // MODEL
-            glm::mat4 model = glm::mat4(1.0f);
-            model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f));
-            model = glm::rotate(model, glm::radians(state.a), glm::vec3(0, 1, 0));
+        draw_primitive(cube,     state.cube,     shaderProgram, uMatrixLoc, projection, view, state.a);
+        draw_primitive(plane,    state.plane,    shaderProgram, uMatrixLoc, projection, view, state.a);
+        draw_primitive(sphere,   state.sphere,   shaderProgram, uMatrixLoc, projection, view, state.a);
+        draw_primitive(cylinder, state.cylinder, shaderProgram, uMatrixLoc, projection, view, state.a);
 
-            // Set uniforms and draw the mesh
-            glUseProgram(shaderProgram);
-                uMatrix = projection * view * model;
-                glUniformMatrix4fv(uMatrixLoc, 1, GL_FALSE, glm::value_ptr(uMatrix));
-                draw_mesh(cube);
-        }
-        
         if(state.msaa) {
             resolve_MSAA(msFBO, WIDTH, HEIGHT);
         }
