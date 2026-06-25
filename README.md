@@ -2,7 +2,7 @@
 
 Exploring _Shadow Mapping_ and it's various problems. for other examples search for "minigl" in my github repositories.
 
-![demo](demos/minigl-hello-cube.png)
+![demo](demos/change_ambient.png)
 
 ## TODO
 
@@ -38,10 +38,10 @@ cmake --build .
 
 ## Progress
 
-| Stage       | Image                                 |
-| ----------- | ------------------------------------- |
-| Blinn-Phong | ![blinn_phong](demos/blinn-phong.png) |
-| Scene done  | ![scene_done](demos/scene_done.png)   |
+| Stage       | Image                                    |
+| ----------- | ---------------------------------------- |
+| Blinn-Phong | ![blinn_phong](demos/change_ambient.png) |
+| Scene done  | ![scene_done](demos/scene_done.png)      |
 
 ## References
 

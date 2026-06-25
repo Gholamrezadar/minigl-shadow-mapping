@@ -28,22 +28,23 @@ void main() {
     vec3 V = normalize(uCameraPos - world_pos);
     vec3 H = normalize(L + V);
 
-    float NdotL = max(dot(N, L), 0.0);
-    float NdotH = max(dot(N, H), 0.0);
-
-    float shininess = 32.0;
-
-    float spec = pow(NdotH, shininess);
-
+    // ambient
     vec3 ambient = uLightAmbient;
 
-    // Separate diffuse and specular scaling
+    // diffuse
+    float NdotL = max(dot(N, L), 0.0);
     vec3 diffuse = uLightColor * NdotL;
+
+    // specular
+    float NdotH = max(dot(N, H), 0.0);
+    float shininess = 32.0;
+    float spec = pow(NdotH, shininess);
     vec3 specular = uLightColor * spec * 0.25;
 
-    vec3 color =
-        ambient +
-        (diffuse + specular) * uLightIntensity;
+    // direct lighting (multiply by shadow later)
+    vec3 direct = (diffuse + specular) * uLightIntensity;
+
+    vec3 color = ambient + direct;
 
     // tone mapping
     color = toneMapReinhard(color);
