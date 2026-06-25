@@ -6,16 +6,23 @@ layout (location = 1) in vec3 aNormal;
 layout (location = 2) in vec2 aUV;
 
 // uniforms
-uniform mat4 uMatrix;
+uniform mat4 uModel;
+uniform mat4 uView;
+uniform mat4 uProjection;
 
 // out to fragment shader
 out vec2 uv;
 out vec3 normal;
+out vec3 world_pos;
 
 void main() {
     uv = aUV;
-    normal = aNormal;
+
+    mat3 normalMatrix = transpose(inverse(mat3(uModel)));
+    normal = normalMatrix * aNormal;
+
     vec4 pos = vec4(aPos, 1.0);
-    pos = uMatrix * pos;
-    gl_Position = pos; 
+    mat4 PVM = uProjection * uView * uModel;
+    vec4 world_pos = PVM * pos;
+    gl_Position = world_pos; 
 }

@@ -38,9 +38,10 @@ cmake --build .
 
 ## Progress
 
-| Stage      | Image                               |
-| ---------- | ----------------------------------- |
-| Scene done | ![scene_done](demos/scene_done.png) |
+| Stage       | Image                                 |
+| ----------- | ------------------------------------- |
+| Blinn-Phong | ![blinn_phong](demos/blinn-phong.png) |
+| Scene done  | ![scene_done](demos/scene_done.png)   |
 
 ## References
 

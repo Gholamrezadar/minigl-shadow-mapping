@@ -38,10 +38,20 @@ struct CameraState {
     float fov = 35.0f;
 };
 
+struct DirectionalLight {
+    glm::vec3 direction = glm::vec3(0.0f, 0.0f, 3.0f);
+    glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f);
+    glm::vec3 ambient = glm::vec3(0.1f, 0.1f, 0.1f);
+    float intensity = 2.3f;
+    float size = 0.001f;
+};
+
 struct State {
     glm::vec3 clear_color;
 
     CameraState camera;
+
+    DirectionalLight light;
 
     float a;
 
@@ -67,6 +77,13 @@ State state = {
         .target   = glm::vec3(0.176f, -0.8f, -0.1f),
         .fov = 41.0f
     },
+    .light = {
+        .direction = glm::vec3(15.0f, -8.0f, 10.0f),
+        .color = glm::vec3(1.0f, 1.0f, 1.0f),
+        .ambient = glm::vec3(0.1f, 0.1f, 0.1f),
+        .intensity = 3.0f,
+        .size = 0.001f
+    },
     .a = 0.0f,
     .frame_count = 1,
     .sum_fps = 0.0f,
@@ -85,20 +102,22 @@ State state = {
         .scale = glm::vec3(3.0f)
     },
     .sphere = {
-        // .visible = true,
-        .visible = false,
+        .visible = true,
+        // .visible = false,
         .position = glm::vec3(-0.8f, -0.25f, 0.0f),
         .scale = glm::vec3(0.5f)
     },
     .cylinder = {
-        // .visible = true,
-        .visible = false,
+        .visible = true,
+        // .visible = false,
         .position = glm::vec3(0.7f, 0.0f, 0.0f),
         .scale = glm::vec3(0.1f, 1.0f, 0.1f)
     }
 };
 
+
 GLuint msFBO;
+//TODO: Shadow mapping textures, ...
 
 
 /// UTILS ///
@@ -297,13 +316,15 @@ void build_UI(State &state) {
             ImGui::SliderFloat("fov", &state.camera.fov, 0.0f, 360.0f);
             ImGui::DragFloat3("Position", &state.camera.position.x, 0.1f);
             ImGui::DragFloat3("Target", &state.camera.target.x, 0.1f);
-
-           ImGui::EndTabItem();
+            ImGui::EndTabItem();
         }
 
         if(ImGui::BeginTabItem("Scene")) {
 
+            if(ImGui::TreeNodeEx("World", ImGuiTreeNodeFlags_DefaultOpen)) {
             ImGui::SliderFloat("Z Rotation", &state.a, 0.0f, 360.0f);
+                ImGui::TreePop();
+            }
 
             // Plane
             if (ImGui::TreeNodeEx("Plane", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -336,13 +357,20 @@ void build_UI(State &state) {
                 ImGui::DragFloat3("Scale##Cylinder", &state.cylinder.scale.x, 0.1f);
                 ImGui::TreePop();
             }
-           ImGui::EndTabItem();
+            ImGui::EndTabItem();
         }
 
         if(ImGui::BeginTabItem("Lighting")) {
-            ImGui::ColorEdit3("Clear Color", &state.clear_color.x);
-            if(ImGui::TreeNode("Directional Light")) {
-                ImGui::Text("Not implemented yet");
+            if(ImGui::TreeNodeEx("World", ImGuiTreeNodeFlags_DefaultOpen)) {
+                ImGui::ColorEdit3("Clear Color", &state.clear_color.x);
+                ImGui::TreePop();
+            }
+            if(ImGui::TreeNodeEx("Directional Light", ImGuiTreeNodeFlags_DefaultOpen)) {
+                ImGui::DragFloat3("Direction", &state.light.direction.x, 0.1f);
+                ImGui::ColorEdit3("Color", &state.light.color.x, 0.1f);
+                ImGui::ColorEdit3("Ambient", &state.light.ambient.x, 0.1f);
+                ImGui::DragFloat("Intensity", &state.light.intensity, 0.1f);
+                ImGui::DragFloat("Size", &state.light.size, 0.01f);
                 ImGui::TreePop();
             }
             ImGui::EndTabItem();
@@ -744,7 +772,9 @@ void draw_primitive(
     const Mesh& mesh,
     const PrimitiveState& primitive,
     GLuint shaderProgram,
-    GLint uMatrixLoc,
+    GLint uModelLoc,
+    GLint uViewLoc,
+    GLint uProjectionLoc,
     const glm::mat4& projection,
     const glm::mat4& view,
     float angle)
@@ -754,14 +784,14 @@ void draw_primitive(
 
     glm::mat4 model = glm::mat4(1.0f);
 
-    model = glm::translate(model, primitive.position);
     model = glm::rotate(model, glm::radians(angle), glm::vec3(0, 1, 0));
+    model = glm::translate(model, primitive.position);
     model = glm::scale(model, primitive.scale);
 
-    glm::mat4 mvp = projection * view * model;
-
     glUseProgram(shaderProgram);
-    glUniformMatrix4fv(uMatrixLoc, 1, GL_FALSE, glm::value_ptr(mvp));
+        glUniformMatrix4fv(uModelLoc, 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(uViewLoc, 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(uProjectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
     draw_mesh(mesh);
 }
@@ -773,8 +803,48 @@ GLuint create_default_shader() {
     return shaderProgram;
 }
 
+void send_light_camera_data_to_shader(GLuint shaderProgram, const State& state) {
+    // light
+    glUniform3fv(
+        glGetUniformLocation(shaderProgram, "uLightDirection"),
+        1,
+        glm::value_ptr(state.light.direction)
+    );
+
+    glUniform3fv(
+        glGetUniformLocation(shaderProgram, "uLightColor"),
+        1,
+        glm::value_ptr(state.light.color)
+    );
+
+    glUniform1f(
+        glGetUniformLocation(shaderProgram, "uLightIntensity"),
+        state.light.intensity
+    );
+
+    glUniform3fv(
+        glGetUniformLocation(shaderProgram, "uLightAmbient"),
+        1,
+        glm::value_ptr(state.light.ambient)
+    );
+
+    glUniform1f(
+        glGetUniformLocation(shaderProgram, "uLightSize"),
+        state.light.size
+    );
+
+    // camera
+    glUniform3fv(
+        glGetUniformLocation(shaderProgram, "uCameraPos"),
+        1,
+        glm::value_ptr(state.camera.position)
+    );
+}
+
 int main() {
     GLFWwindow* window = init_window(WIDTH, HEIGHT);
+
+    state.light.ambient = state.clear_color*0.8f;
     
     // Enable Depth
     glEnable(GL_DEPTH_TEST);
@@ -786,9 +856,16 @@ int main() {
     
     // Shader
     GLuint shaderProgram = create_default_shader();
-        GLint uMatrixLoc = glGetUniformLocation(shaderProgram, "uMatrix");
-        glm::mat4 uMatrix = glm::mat4(1.0f);
-        glUniformMatrix4fv(uMatrixLoc, 1, GL_FALSE, glm::value_ptr(uMatrix));
+        GLint uModelLoc = glGetUniformLocation(shaderProgram, "uModel");
+        GLint uViewLoc = glGetUniformLocation(shaderProgram, "uView");
+        GLint uProjectionLoc = glGetUniformLocation(shaderProgram, "uProjection");
+        glm::mat4 uModel = glm::mat4(1.0f);
+        glm::mat4 uView = glm::mat4(1.0f);
+        glm::mat4 uProjection = glm::mat4(1.0f);
+        glUniformMatrix4fv(uModelLoc, 1, GL_FALSE, glm::value_ptr(uModel));
+        glUniformMatrix4fv(uViewLoc, 1, GL_FALSE, glm::value_ptr(uView));
+        glUniformMatrix4fv(uProjectionLoc, 1, GL_FALSE, glm::value_ptr(uProjection));
+        send_light_camera_data_to_shader(shaderProgram, state);
 
     // Scene
     Mesh cube = create_cube();
@@ -812,11 +889,12 @@ int main() {
 
         // UI
         build_UI(state);
-
+        
         if (state.wireframe)
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         else
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
         // PROJECTION
         glm::mat4 projection = glm::perspective(
             glm::radians(state.camera.fov),
@@ -832,10 +910,12 @@ int main() {
             glm::vec3(0.0f, 1.0f, 0.0f)  // up
         );
 
-        draw_primitive(cube,     state.cube,     shaderProgram, uMatrixLoc, projection, view, state.a);
-        draw_primitive(plane,    state.plane,    shaderProgram, uMatrixLoc, projection, view, state.a);
-        draw_primitive(sphere,   state.sphere,   shaderProgram, uMatrixLoc, projection, view, state.a);
-        draw_primitive(cylinder, state.cylinder, shaderProgram, uMatrixLoc, projection, view, state.a);
+        send_light_camera_data_to_shader(shaderProgram, state);
+
+        draw_primitive(cube,     state.cube,     shaderProgram, uModelLoc, uViewLoc, uProjectionLoc, projection, view, state.a);
+        draw_primitive(plane,    state.plane,    shaderProgram, uModelLoc, uViewLoc, uProjectionLoc, projection, view, state.a);
+        draw_primitive(sphere,   state.sphere,   shaderProgram, uModelLoc, uViewLoc, uProjectionLoc, projection, view, state.a);
+        draw_primitive(cylinder, state.cylinder, shaderProgram, uModelLoc, uViewLoc, uProjectionLoc, projection, view, state.a);
 
         if(state.msaa) {
             resolve_MSAA(msFBO, WIDTH, HEIGHT);
