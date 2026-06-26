@@ -95,6 +95,7 @@ struct State {
     float normalBias;
     float lightPosZ;
     float lightOrthoSize;
+    float shininess;
 };
 
 /// UTILS ///
@@ -350,6 +351,7 @@ void build_UI(State &state) {
                 ImGui::ColorEdit3("Ambient", &state.light.ambient.x);
                 ImGui::DragFloat("Intensity", &state.light.intensity, 0.1f);
                 ImGui::DragFloat("Size", &state.light.size, 0.01f);
+                ImGui::DragFloat("Shininess", &state.shininess, 0.01f);
                 ImGui::TreePop();
             }
             ImGui::EndTabItem();
@@ -827,6 +829,12 @@ void send_light_camera_data_to_shader(GLuint shaderProgram, const State& state) 
         state.light.size
     );
 
+    // shininess
+    glUniform1f(
+        glGetUniformLocation(shaderProgram, "uShininess"),
+        state.shininess
+    );
+
     // camera
     glUniform3fv(
         glGetUniformLocation(shaderProgram, "uCameraPos"),
@@ -958,11 +966,25 @@ void main_pass(
     glBindTexture(GL_TEXTURE_2D, state.shadowDepthTex);
     glUniform1i(glGetUniformLocation(state.default_shader, "uShadowMap"), 0);
 
+    // light space matrix uniform
     glUniformMatrix4fv(
         glGetUniformLocation(state.default_shader, "uLightSpaceMatrix"),
         1, GL_FALSE,
         glm::value_ptr(state.lightSpaceMatrix)
     );
+
+    // bias uniform
+    glUniform1f(
+        glGetUniformLocation(state.default_shader, "uBias"),
+        state.bias
+    );
+
+    // normal bias uniform
+    glUniform1f(
+        glGetUniformLocation(state.default_shader, "uNormalBias"),
+        state.normalBias
+    );
+
     draw_primitive(state, state.cube,     state.default_shader, projection, view, state.a);
     draw_primitive(state, state.plane,    state.default_shader, projection, view, state.a);
     draw_primitive(state, state.sphere,   state.default_shader, projection, view, state.a);
@@ -1016,10 +1038,11 @@ void init_state(State &state) {
             .visible = true
         },
         .SHADOW_SIZE = 2048,
-        .bias = 0.1f,
-        .normalBias = 0.1f,
+        .bias = 0.0001f,
+        .normalBias = 0.0001f,
         .lightPosZ = 10.0f,
         .lightOrthoSize = 2.1f,
+        .shininess = 32.0f
     };
 
     // Default Shader

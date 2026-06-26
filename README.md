@@ -11,9 +11,9 @@ Exploring _Shadow Mapping_ and it's various problems. for other examples search 
 - [x] Sphere
 - [x] Cylinder
 - [x] Camera Movement
-- [ ] Blinn-Phong
-- [ ] Shadow Mapping
-- [ ] Bias
+- [x] Blinn-Phong
+- [x] Shadow Mapping
+- [x] Bias
 - [ ] Normal Bias
 - [ ] PCF
 - [ ] PCSS
@@ -26,22 +26,6 @@ Exploring _Shadow Mapping_ and it's various problems. for other examples search 
 - glad
 - imgui
 - glm
-
-## Build
-
-```bash
-mkdir build
-cd build
-cmake ..
-cmake --build .
-```
-
-```bash
-# MSVC
-time cmake --build build -j && build/Debug/minigl_shadow_mapping.exe
-# Clang
-time cmake --build build -j && build/minigl_shadow_mapping.exe
-```
 
 ## Progress
 
@@ -61,6 +45,22 @@ Reference screenshots from Blender
 | Soft Shadow        | ![Soft](demos/cube_soft_reference.png)      |
 | Sphere PCSS        | ![Sphere](demos/sphere_pcss_reference2.png) |
 | Light Jitter (WTF) | ![Jitter](demos/all_jitter.png)             |
+
+## Build
+
+```bash
+mkdir build
+cd build
+cmake ..
+cmake --build .
+```
+
+```bash
+# MSVC
+time cmake --build build -j && build/Debug/minigl_shadow_mapping.exe
+# Clang
+time cmake --build build -j && build/minigl_shadow_mapping.exe
+```
 
 ## Credits
 

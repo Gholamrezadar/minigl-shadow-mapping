@@ -9,8 +9,11 @@ uniform vec3 uLightColor;
 uniform float uLightIntensity;
 uniform vec3 uLightAmbient;
 uniform float uLightSize;
+uniform float uShininess;
 uniform sampler2D uShadowMap;
 uniform mat4 uLightSpaceMatrix;
+uniform float uBias;
+uniform float uNormalBias;
 
 // TODO: shininess uniform
 
@@ -34,8 +37,7 @@ float ShadowCalculation(vec4 fragWorldPos)
     float closestDepth = texture(uShadowMap, proj.xy).r;
     float currentDepth = proj.z;
 
-    // float shadow = currentDepth > closestDepth + 0.005 ? 0.0 : 1.0;
-    float shadow = currentDepth > closestDepth ? 0.0 : 1.0;
+    float shadow = currentDepth > closestDepth + uBias ? 0.0 : 1.0;
     return shadow;
 }
 
@@ -54,8 +56,7 @@ void main() {
 
     // specular
     float NdotH = max(dot(N, H), 0.0);
-    float shininess = 64.0;
-    float spec = pow(NdotH, shininess);
+    float spec = pow(NdotH, uShininess);
     vec3 specular = uLightColor * spec * 0.25;
 
     // direct lighting
