@@ -13,7 +13,7 @@ uniform mat4 uProjection;
 // out to fragment shader
 out vec2 uv;
 out vec3 normal;
-out vec3 world_pos;
+out vec4 world_pos;
 
 void main() {
     uv = aUV;
@@ -23,6 +23,6 @@ void main() {
 
     vec4 pos = vec4(aPos, 1.0);
     mat4 PVM = uProjection * uView * uModel;
-    vec4 world_pos = PVM * pos;
-    gl_Position = world_pos; 
+    world_pos = uModel * pos;
+    gl_Position = PVM * pos; 
 }

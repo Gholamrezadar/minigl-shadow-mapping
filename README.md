@@ -45,10 +45,11 @@ time cmake --build build -j && build/minigl_shadow_mapping.exe
 
 ## Progress
 
-| Stage       | Image                                    |
-| ----------- | ---------------------------------------- |
-| Blinn-Phong | ![blinn_phong](demos/change_ambient.png) |
-| Scene done  | ![scene_done](demos/scene_done.png)      |
+| Stage        | Image                                    |
+| ------------ | ---------------------------------------- |
+| First Shadow | ![first_shadow](demos/first_shadow.png)  |
+| Blinn-Phong  | ![blinn_phong](demos/change_ambient.png) |
+| Scene done   | ![scene_done](demos/scene_done.png)      |
 
 ## References
 

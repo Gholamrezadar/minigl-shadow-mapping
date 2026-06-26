@@ -401,7 +401,7 @@ void build_UI(State &state) {
         if(ImGui::BeginTabItem("Shadow Map")) {
                 ImGui::Image(
                     (ImTextureID)(intptr_t)state.shadowDepthTex,
-                    ImVec2(300, 300),
+                    ImVec2(200, 200),
                     ImVec2(0, 1),   // UV0
                     ImVec2(1, 0)    // UV1 (flip vertically)
                 );
@@ -952,7 +952,17 @@ void main_pass(
     glUseProgram(state.default_shader);
 
     send_light_camera_data_to_shader(state.default_shader, state);
-    
+
+    // send shadow map to shader
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, state.shadowDepthTex);
+    glUniform1i(glGetUniformLocation(state.default_shader, "uShadowMap"), 0);
+
+    glUniformMatrix4fv(
+        glGetUniformLocation(state.default_shader, "uLightSpaceMatrix"),
+        1, GL_FALSE,
+        glm::value_ptr(state.lightSpaceMatrix)
+    );
     draw_primitive(state, state.cube,     state.default_shader, projection, view, state.a);
     draw_primitive(state, state.plane,    state.default_shader, projection, view, state.a);
     draw_primitive(state, state.sphere,   state.default_shader, projection, view, state.a);
@@ -968,11 +978,11 @@ void init_state(State &state) {
         .clear_color = glm::vec3(0.28f, 0.35f, 0.4f),
         .camera = {
             .position = glm::vec3(-1.5f, 1.1f, 3.3f),
-            .target   = glm::vec3(0.176f, -0.8f, -0.1f),
+            .target   = glm::vec3(-0.2f, -0.8f, -0.1f),
             .fov = 41.0f
         },
         .light = {
-            .direction = glm::vec3(15.0f, -8.0f, 10.0f),
+            .direction = glm::vec3(4.0f, -8.0f, 10.0f),
             .color = glm::vec3(1.0f, 1.0f, 1.0f),
             .ambient = glm::vec3(0.075f, 0.161f, 0.235f),
             .intensity = 0.8f,
@@ -1009,7 +1019,7 @@ void init_state(State &state) {
         .bias = 0.1f,
         .normalBias = 0.1f,
         .lightPosZ = 10.0f,
-        .lightOrthoSize = 3.0f,
+        .lightOrthoSize = 2.1f,
     };
 
     // Default Shader
@@ -1017,12 +1027,6 @@ void init_state(State &state) {
         state.uModelLoc      = glGetUniformLocation(state.default_shader, "uModel");
         state.uViewLoc       = glGetUniformLocation(state.default_shader, "uView");
         state.uProjectionLoc = glGetUniformLocation(state.default_shader, "uProjection");
-        // glm::mat4 uModel      = glm::mat4(1.0f);
-        // glm::mat4 uView       = glm::mat4(1.0f);
-        // glm::mat4 uProjection = glm::mat4(1.0f);
-        // glUniformMatrix4fv(state.uModelLoc, 1, GL_FALSE, glm::value_ptr(uModel));
-        // glUniformMatrix4fv(state.uViewLoc, 1, GL_FALSE, glm::value_ptr(uView));
-        // glUniformMatrix4fv(state.uProjectionLoc, 1, GL_FALSE, glm::value_ptr(uProjection));
         send_light_camera_data_to_shader(state.default_shader, state);
 
     // Scene
@@ -1055,13 +1059,11 @@ int main() {
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
 
-        shadow_pass(
-            state
-        );
+        // Renders the shadow map to a texture
+        shadow_pass(state);
 
-        main_pass(
-            state
-        );
+        // Renders the scene using the shadow map
+        main_pass(state);
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         render_UI();
