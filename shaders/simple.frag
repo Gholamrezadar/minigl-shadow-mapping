@@ -27,10 +27,16 @@ vec3 toneMapReinhard(vec3 x) {
 }
 
 // 0: Shadow, 1: No Shadow
-float ShadowCalculation(vec4 fragWorldPos)
+float ShadowCalculation(vec4 fragWorldPos, vec3 N, vec3 L)
 {
-    // Transform to light space
-    vec4 fragLightSpacePos = uLightSpaceMatrix * fragWorldPos;
+    // Apply normal bias scaled by grazing angle to reduce acne on steep surfaces
+    // "Basically, during the generation of the shadow map, this will inset the geometry in"
+    // - https://doc.babylonjs.com/features/featuresDeepDive/lights/shadows/
+    float angleFactor = 1.0 - max(dot(N, L), 0.0);
+    vec3 biasedWorldPos = fragWorldPos.xyz + N * (uNormalBias * angleFactor);
+
+    // Transform biased position to light space
+    vec4 fragLightSpacePos = uLightSpaceMatrix * vec4(biasedWorldPos, 1.0);
     vec3 proj = fragLightSpacePos.xyz / fragLightSpacePos.w;
     proj = proj * 0.5 + 0.5;
 
@@ -61,7 +67,7 @@ void main() {
 
     // direct lighting
     vec3 direct = (diffuse + specular) * uLightIntensity;
-    direct *= ShadowCalculation(world_pos);
+    direct *= ShadowCalculation(world_pos, N, L);
 
     vec3 color = ambient + direct;
 

@@ -1038,8 +1038,8 @@ void init_state(State &state) {
             .visible = true
         },
         .SHADOW_SIZE = 2048,
-        .bias = 0.0001f,
-        .normalBias = 0.0001f,
+        .bias = 0.0003f,
+        .normalBias = 0.002f,
         .lightPosZ = 10.0f,
         .lightOrthoSize = 2.1f,
         .shininess = 32.0f
@@ -1073,6 +1073,19 @@ int main() {
 
     // Create world, shaders, ...
     init_state(state);
+
+    // Closeup Sphere
+    if(true) {
+        state.sphere.position = glm::vec3(0.0f, -0.25f, 0.0f);
+        state.sphere.visible = true;
+        state.plane.visible = true;
+        state.cube.visible = false;
+        state.cylinder.visible = false;
+
+        state.camera.fov = 13.308f;
+        state.camera.position = glm::vec3(-1.179f, 0.591f, 3.3f);
+        state.camera.target = glm::vec3(0.0f, -0.351f, 0.0f);
+    }
 
     // Enable Depth
     glEnable(GL_DEPTH_TEST);
