@@ -16,24 +16,34 @@
 #include <string>
 #include <vector>
 
+// Globals // 
 int WIDTH = 1280;
 int HEIGHT = 720;
 
+
+// Types //
 enum MSAA_SAMPLES {
     MSAA_SAMPLES_4  = 4,
     MSAA_SAMPLES_8  = 8,
     MSAA_SAMPLES_16 = 16
 };
 
+struct Mesh {
+    GLuint vao = 0;
+    GLuint vbo = 0;
+    GLuint ebo = 0;
 
-struct PrimitiveState {
-    bool visible = true;
-
-    glm::vec3 position;
-    glm::vec3 scale;
+    GLsizei indexCount = 0;
 };
 
-struct CameraState {
+struct Primitive {
+    Mesh mesh;
+    glm::vec3 position;
+    glm::vec3 scale;
+    bool visible = true;
+};
+
+struct Camera {
     glm::vec3 position;
     glm::vec3 target;
     float fov;
@@ -50,7 +60,7 @@ struct DirectionalLight {
 struct State {
     glm::vec3 clear_color;
 
-    CameraState camera;
+    Camera camera;
 
     DirectionalLight light;
 
@@ -61,63 +71,23 @@ struct State {
     float avg_fps;
 
     bool msaa;
+    GLuint msFBO;
     MSAA_SAMPLES msaa_samples;
 
     bool wireframe;
 
-    PrimitiveState cube;
-    PrimitiveState plane;
-    PrimitiveState sphere;
-    PrimitiveState cylinder;
+    Primitive cube;
+    Primitive plane;
+    Primitive sphere;
+    Primitive cylinder;
+
+    GLuint default_shader;
+    GLint uModelLoc;
+    GLint uViewLoc;
+    GLint uProjectionLoc;
+    
+    GLuint shadow_shader;
 };
-
-State state = {
-    .clear_color = glm::vec3(0.28f, 0.35f, 0.4f),
-    .camera = {
-        .position = glm::vec3(-1.5f, 1.1f, 3.3f),
-        .target   = glm::vec3(0.176f, -0.8f, -0.1f),
-        .fov = 41.0f
-    },
-    .light = {
-        .direction = glm::vec3(15.0f, -8.0f, 10.0f),
-        .color = glm::vec3(1.0f, 1.0f, 1.0f),
-        .ambient = glm::vec3(0.075f, 0.161f, 0.235f),
-        .intensity = 0.8f,
-        .size = 0.001f
-    },
-    .a = 0.0f,
-    .frame_count = 1,
-    .sum_fps = 0.0f,
-    .avg_fps = 0.0f,
-    .msaa = true,
-    .msaa_samples = MSAA_SAMPLES_4 ,
-    .wireframe = false,
-    .cube = {
-        .visible = true,
-        .position = glm::vec3(0.0f, -0.25f, 0.0f),
-        .scale = glm::vec3(0.5f)
-    },
-    .plane = {
-        .visible = true,
-        .position = glm::vec3(0.0f, -0.5f, 0.0f),
-        .scale = glm::vec3(3.0f)
-    },
-    .sphere = {
-        .visible = true,
-        .position = glm::vec3(-0.8f, -0.25f, 0.0f),
-        .scale = glm::vec3(0.5f)
-    },
-    .cylinder = {
-        .visible = true,
-        .position = glm::vec3(0.7f, 0.0f, 0.0f),
-        .scale = glm::vec3(0.1f, 1.0f, 0.1f)
-    }
-};
-
-
-GLuint msFBO;
-//TODO: Shadow mapping textures, ...
-
 
 /// UTILS ///
 std::string read_file(const std::string& filePath) {
@@ -199,15 +169,16 @@ GLuint create_program(const std::string& vertexPath, const std::string& fragment
 
 /// SYSTEM ///
 GLuint create_MSAA_FBO(int, int, int);
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+    auto* state = static_cast<State*>(glfwGetWindowUserPointer(window));
     WIDTH = width;
     HEIGHT = height;
-    msFBO = create_MSAA_FBO(WIDTH, HEIGHT, state.msaa_samples);
+    state->msFBO = create_MSAA_FBO(WIDTH, HEIGHT, state->msaa_samples);
     glViewport(0, 0, width, height);
-
 }
 
-GLFWwindow* init_window(int width, int height) {
+GLFWwindow* init_window(int width, int height, State &state) {
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW\n";
         return nullptr;
@@ -218,6 +189,7 @@ GLFWwindow* init_window(int width, int height) {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "MiniGL - Shadow Mapping", nullptr, nullptr);
+    glfwSetWindowUserPointer(window, &state); // for resizing callback to work
 
     if (!window) {
         std::cerr << "Failed to create GLFW window\n";
@@ -412,7 +384,7 @@ void build_UI(State &state) {
 
                 // Recreate MSAA FBO
                 if (state.msaa) {
-                    msFBO = create_MSAA_FBO(WIDTH, HEIGHT, state.msaa_samples);
+                    state.msFBO = create_MSAA_FBO(WIDTH, HEIGHT, state.msaa_samples);
                 }
             }
             
@@ -431,14 +403,6 @@ void render_UI() {
 
 
 /// MESH ///
-struct Mesh {
-    GLuint vao = 0;
-    GLuint vbo = 0;
-    GLuint ebo = 0;
-
-    GLsizei indexCount = 0;
-};
-
 Mesh create_mesh(const float* vertices, size_t vertexBytes, const unsigned int* indices, size_t indexBytes) {
     Mesh mesh;
 
@@ -768,12 +732,9 @@ Mesh create_cylinder(int rows, int cols)
 }
 
 void draw_primitive(
-    const Mesh& mesh,
-    const PrimitiveState& primitive,
+    State& state,
+    const Primitive& primitive,
     GLuint shaderProgram,
-    GLint uModelLoc,
-    GLint uViewLoc,
-    GLint uProjectionLoc,
     const glm::mat4& projection,
     const glm::mat4& view,
     float angle)
@@ -788,11 +749,11 @@ void draw_primitive(
     model = glm::scale(model, primitive.scale);
 
     glUseProgram(shaderProgram);
-        glUniformMatrix4fv(uModelLoc, 1, GL_FALSE, glm::value_ptr(model));
-        glUniformMatrix4fv(uViewLoc, 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(uProjectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
+        glUniformMatrix4fv(state.uModelLoc, 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(state.uViewLoc, 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(state.uProjectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
-    draw_mesh(mesh);
+    draw_mesh(primitive.mesh);
 }
 
 /// Shaders ///  
@@ -840,84 +801,152 @@ void send_light_camera_data_to_shader(GLuint shaderProgram, const State& state) 
     );
 }
 
+void shadow_pass(
+    State& state
+) {
+    return;
+}
+
+void main_pass(
+    State& state
+) {
+    if(state.msaa) 
+        glBindFramebuffer(GL_FRAMEBUFFER, state.msFBO);
+    else 
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    
+    // Clear the screen
+    glViewport(0, 0, WIDTH, HEIGHT);
+    glClearColor(state.clear_color.x, state.clear_color.y, state.clear_color.z, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    
+    // UI
+    build_UI(state);
+    
+    if (state.wireframe)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    else
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    
+    // PROJECTION
+    glm::mat4 projection = glm::perspective(
+        glm::radians(state.camera.fov),
+        static_cast<float>(WIDTH) / static_cast<float>(HEIGHT),
+        0.1f,
+        100.0f
+    );
+    
+    // VIEW
+    glm::mat4 view = glm::lookAt(
+        state.camera.position, // camera position
+        state.camera.target,   // look at
+        glm::vec3(0.0f, 1.0f, 0.0f)  // up
+    );
+    
+    send_light_camera_data_to_shader(state.default_shader, state);
+    
+    draw_primitive(state, state.cube,     state.default_shader, projection, view, state.a);
+    draw_primitive(state, state.plane,    state.default_shader, projection, view, state.a);
+    draw_primitive(state, state.sphere,   state.default_shader, projection, view, state.a);
+    draw_primitive(state, state.cylinder, state.default_shader, projection, view, state.a);
+    
+    if(state.msaa) {
+        resolve_MSAA(state.msFBO, WIDTH, HEIGHT);
+    }
+}
+
+void init_state(State &state) {
+    state = {
+        .clear_color = glm::vec3(0.28f, 0.35f, 0.4f),
+        .camera = {
+            .position = glm::vec3(-1.5f, 1.1f, 3.3f),
+            .target   = glm::vec3(0.176f, -0.8f, -0.1f),
+            .fov = 41.0f
+        },
+        .light = {
+            .direction = glm::vec3(15.0f, -8.0f, 10.0f),
+            .color = glm::vec3(1.0f, 1.0f, 1.0f),
+            .ambient = glm::vec3(0.075f, 0.161f, 0.235f),
+            .intensity = 0.8f,
+            .size = 0.001f
+        },
+        .a = 0.0f,
+        .frame_count = 1,
+        .sum_fps = 0.0f,
+        .avg_fps = 0.0f,
+        .msaa = true,
+        .msaa_samples = MSAA_SAMPLES_4 ,
+        .wireframe = false,
+        .cube = {
+            .position = glm::vec3(0.0f, -0.25f, 0.0f),
+            .scale = glm::vec3(0.5f),
+            .visible = true
+        },
+        .plane = {
+            .position = glm::vec3(0.0f, -0.5f, 0.0f),
+            .scale = glm::vec3(3.0f),
+            .visible = true
+        },
+        .sphere = {
+            .position = glm::vec3(-0.8f, -0.25f, 0.0f),
+            .scale = glm::vec3(0.5f),
+            .visible = true
+        },
+        .cylinder = {
+            .position = glm::vec3(0.7f, 0.0f, 0.0f),
+            .scale = glm::vec3(0.1f, 1.0f, 0.1f),
+            .visible = true
+        }
+    };
+
+    // Default Shader
+    state.default_shader = create_default_shader();
+        state.uModelLoc      = glGetUniformLocation(state.default_shader, "uModel");
+        state.uViewLoc       = glGetUniformLocation(state.default_shader, "uView");
+        state.uProjectionLoc = glGetUniformLocation(state.default_shader, "uProjection");
+        glm::mat4 uModel      = glm::mat4(1.0f);
+        glm::mat4 uView       = glm::mat4(1.0f);
+        glm::mat4 uProjection = glm::mat4(1.0f);
+        glUniformMatrix4fv(state.uModelLoc, 1, GL_FALSE, glm::value_ptr(uModel));
+        glUniformMatrix4fv(state.uViewLoc, 1, GL_FALSE, glm::value_ptr(uView));
+        glUniformMatrix4fv(state.uProjectionLoc, 1, GL_FALSE, glm::value_ptr(uProjection));
+        send_light_camera_data_to_shader(state.default_shader, state);
+
+    // Scene
+    state.cube.mesh     = create_cube();
+    state.plane.mesh    = create_plane();
+    state.sphere.mesh   = create_sphere(32, 32);
+    state.cylinder.mesh = create_cylinder(8, 32);
+}
+
 int main() {
-    GLFWwindow* window = init_window(WIDTH, HEIGHT);
+    State state;
+    GLFWwindow* window = init_window(WIDTH, HEIGHT, state);
+
+    // Create world, shaders, ...
+    init_state(state);
 
     // Enable Depth
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
 
     if(state.msaa) {
-        msFBO = create_MSAA_FBO(WIDTH, HEIGHT, state.msaa_samples);
+        state.msFBO = create_MSAA_FBO(WIDTH, HEIGHT, state.msaa_samples);
     }
     
-    // Shader
-    GLuint shaderProgram = create_default_shader();
-        GLint uModelLoc      = glGetUniformLocation(shaderProgram, "uModel");
-        GLint uViewLoc       = glGetUniformLocation(shaderProgram, "uView");
-        GLint uProjectionLoc = glGetUniformLocation(shaderProgram, "uProjection");
-        glm::mat4 uModel      = glm::mat4(1.0f);
-        glm::mat4 uView       = glm::mat4(1.0f);
-        glm::mat4 uProjection = glm::mat4(1.0f);
-        glUniformMatrix4fv(uModelLoc, 1, GL_FALSE, glm::value_ptr(uModel));
-        glUniformMatrix4fv(uViewLoc, 1, GL_FALSE, glm::value_ptr(uView));
-        glUniformMatrix4fv(uProjectionLoc, 1, GL_FALSE, glm::value_ptr(uProjection));
-        send_light_camera_data_to_shader(shaderProgram, state);
-
-    // Scene
-    Mesh cube     = create_cube();
-    Mesh plane    = create_plane();
-    Mesh sphere   = create_sphere(32, 32);
-    Mesh cylinder = create_cylinder(8, 32);
-
     // Render Loop
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
 
-        if(state.msaa) 
-            glBindFramebuffer(GL_FRAMEBUFFER, msFBO);
-        else 
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-        // Clear the screen
-        glViewport(0, 0, WIDTH, HEIGHT);
-        glClearColor(state.clear_color.x, state.clear_color.y, state.clear_color.z, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        // UI
-        build_UI(state);
-        
-        if (state.wireframe)
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        else
-            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-        // PROJECTION
-        glm::mat4 projection = glm::perspective(
-            glm::radians(state.camera.fov),
-            static_cast<float>(WIDTH) / static_cast<float>(HEIGHT),
-            0.1f,
-            100.0f
+        shadow_pass(
+            state
         );
 
-        // VIEW
-        glm::mat4 view = glm::lookAt(
-            state.camera.position, // camera position
-            state.camera.target,   // look at
-            glm::vec3(0.0f, 1.0f, 0.0f)  // up
+        main_pass(
+            state
         );
 
-        send_light_camera_data_to_shader(shaderProgram, state);
-
-        draw_primitive(cube,     state.cube,     shaderProgram, uModelLoc, uViewLoc, uProjectionLoc, projection, view, state.a);
-        draw_primitive(plane,    state.plane,    shaderProgram, uModelLoc, uViewLoc, uProjectionLoc, projection, view, state.a);
-        draw_primitive(sphere,   state.sphere,   shaderProgram, uModelLoc, uViewLoc, uProjectionLoc, projection, view, state.a);
-        draw_primitive(cylinder, state.cylinder, shaderProgram, uModelLoc, uViewLoc, uProjectionLoc, projection, view, state.a);
-
-        if(state.msaa) {
-            resolve_MSAA(msFBO, WIDTH, HEIGHT);
-        }
-
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
         render_UI();
 
         glfwSwapBuffers(window);
