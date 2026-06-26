@@ -87,6 +87,14 @@ struct State {
     GLint uProjectionLoc;
     
     GLuint shadow_shader;
+    GLuint shadowFBO;
+    GLuint shadowDepthTex;
+    int SHADOW_SIZE;
+    glm::mat4 lightSpaceMatrix;
+    float bias;
+    float normalBias;
+    float lightPosZ;
+    float lightOrthoSize;
 };
 
 /// UTILS ///
@@ -390,6 +398,20 @@ void build_UI(State &state) {
             
             ImGui::EndTabItem();
         }
+        if(ImGui::BeginTabItem("Shadow Map")) {
+                ImGui::Image(
+                    (ImTextureID)(intptr_t)state.shadowDepthTex,
+                    ImVec2(300, 300),
+                    ImVec2(0, 1),   // UV0
+                    ImVec2(1, 0)    // UV1 (flip vertically)
+                );
+                ImGui::DragFloat("Light Pos Z", &state.lightPosZ, 0.01f);
+                ImGui::DragFloat("Light Ortho Size", &state.lightOrthoSize, 0.01f);
+                ImGui::DragFloat("Bias", &state.bias, 0.01f);
+                ImGui::DragFloat("Normal Bias", &state.normalBias, 0.01f);
+            ImGui::EndTabItem();
+        }
+
         ImGui::EndTabBar();
     }
 
@@ -748,10 +770,14 @@ void draw_primitive(
     model = glm::translate(model, primitive.position);
     model = glm::scale(model, primitive.scale);
 
+    GLuint uModelLoc = glGetUniformLocation(shaderProgram, "uModel");
+    GLuint uViewLoc = glGetUniformLocation(shaderProgram, "uView");
+    GLuint uProjectionLoc = glGetUniformLocation(shaderProgram, "uProjection");
+
     glUseProgram(shaderProgram);
-        glUniformMatrix4fv(state.uModelLoc, 1, GL_FALSE, glm::value_ptr(model));
-        glUniformMatrix4fv(state.uViewLoc, 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(state.uProjectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
+        glUniformMatrix4fv(uModelLoc, 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(uViewLoc, 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(uProjectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
     draw_mesh(primitive.mesh);
 }
@@ -763,7 +789,15 @@ GLuint create_default_shader() {
     return shaderProgram;
 }
 
+GLuint create_shadow_shader() {
+    unsigned int shaderProgram = create_program("shaders/shadow.vert", "shaders/shadow.frag");
+    glUseProgram(shaderProgram);
+    return shaderProgram;
+}
+
 void send_light_camera_data_to_shader(GLuint shaderProgram, const State& state) {
+    glUseProgram(shaderProgram);
+
     // light
     glUniform3fv(
         glGetUniformLocation(shaderProgram, "uLightDirection"),
@@ -801,9 +835,81 @@ void send_light_camera_data_to_shader(GLuint shaderProgram, const State& state) 
     );
 }
 
+void init_shadow_map(State& state) {
+    //Create depth shader
+    state.shadow_shader = create_shadow_shader();
+
+    // Create depth texture
+    glGenTextures(1, &state.shadowDepthTex);
+    glBindTexture(GL_TEXTURE_2D, state.shadowDepthTex);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F,
+        state.SHADOW_SIZE, state.SHADOW_SIZE, 0,
+        GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+
+    float border[] = {1.0, 1.0, 1.0, 1.0};
+    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, border);
+
+    // Create shadow FBO
+    glGenFramebuffers(1, &state.shadowFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, state.shadowFBO);
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+        GL_TEXTURE_2D, state.shadowDepthTex, 0);
+
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    return;
+}
+
 void shadow_pass(
     State& state
 ) {
+    glEnable(GL_DEPTH_TEST);
+    // Light setup
+    glm::vec3 lightDir = glm::normalize(state.light.direction);
+    glm::vec3 lightPos = -lightDir * state.lightPosZ;
+
+    glm::mat4 lightView = glm::lookAt(
+        lightPos,
+        lightPos + lightDir,
+        glm::vec3(0, 1, 0)
+    );
+
+    // Frustum
+    float orthoSize = state.lightOrthoSize;
+
+    glm::mat4 lightProj = glm::ortho(
+        -orthoSize, orthoSize,
+        -orthoSize, orthoSize,
+        0.1f, 25.0f  // near/far: light is 10 units away, scene depth ~2, so 25 is safe
+    );
+
+    // We will use it in the main pass to transform points to light space
+    state.lightSpaceMatrix = lightProj * lightView;
+
+    glViewport(0, 0, state.SHADOW_SIZE, state.SHADOW_SIZE);
+    glBindFramebuffer(GL_FRAMEBUFFER, state.shadowFBO);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    // depth-only shader
+    glUseProgram(state.shadow_shader);
+
+    // render scene geometry
+    draw_primitive(state, state.cube,     state.shadow_shader, lightProj, lightView, state.a);
+    draw_primitive(state, state.plane,    state.shadow_shader, lightProj, lightView, state.a);
+    draw_primitive(state, state.sphere,   state.shadow_shader, lightProj, lightView, state.a);
+    draw_primitive(state, state.cylinder, state.shadow_shader, lightProj, lightView, state.a);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     return;
 }
 
@@ -819,7 +925,7 @@ void main_pass(
     glViewport(0, 0, WIDTH, HEIGHT);
     glClearColor(state.clear_color.x, state.clear_color.y, state.clear_color.z, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    
+
     // UI
     build_UI(state);
     
@@ -842,7 +948,9 @@ void main_pass(
         state.camera.target,   // look at
         glm::vec3(0.0f, 1.0f, 0.0f)  // up
     );
-    
+
+    glUseProgram(state.default_shader);
+
     send_light_camera_data_to_shader(state.default_shader, state);
     
     draw_primitive(state, state.cube,     state.default_shader, projection, view, state.a);
@@ -896,7 +1004,12 @@ void init_state(State &state) {
             .position = glm::vec3(0.7f, 0.0f, 0.0f),
             .scale = glm::vec3(0.1f, 1.0f, 0.1f),
             .visible = true
-        }
+        },
+        .SHADOW_SIZE = 2048,
+        .bias = 0.1f,
+        .normalBias = 0.1f,
+        .lightPosZ = 10.0f,
+        .lightOrthoSize = 3.0f,
     };
 
     // Default Shader
@@ -904,12 +1017,12 @@ void init_state(State &state) {
         state.uModelLoc      = glGetUniformLocation(state.default_shader, "uModel");
         state.uViewLoc       = glGetUniformLocation(state.default_shader, "uView");
         state.uProjectionLoc = glGetUniformLocation(state.default_shader, "uProjection");
-        glm::mat4 uModel      = glm::mat4(1.0f);
-        glm::mat4 uView       = glm::mat4(1.0f);
-        glm::mat4 uProjection = glm::mat4(1.0f);
-        glUniformMatrix4fv(state.uModelLoc, 1, GL_FALSE, glm::value_ptr(uModel));
-        glUniformMatrix4fv(state.uViewLoc, 1, GL_FALSE, glm::value_ptr(uView));
-        glUniformMatrix4fv(state.uProjectionLoc, 1, GL_FALSE, glm::value_ptr(uProjection));
+        // glm::mat4 uModel      = glm::mat4(1.0f);
+        // glm::mat4 uView       = glm::mat4(1.0f);
+        // glm::mat4 uProjection = glm::mat4(1.0f);
+        // glUniformMatrix4fv(state.uModelLoc, 1, GL_FALSE, glm::value_ptr(uModel));
+        // glUniformMatrix4fv(state.uViewLoc, 1, GL_FALSE, glm::value_ptr(uView));
+        // glUniformMatrix4fv(state.uProjectionLoc, 1, GL_FALSE, glm::value_ptr(uProjection));
         send_light_camera_data_to_shader(state.default_shader, state);
 
     // Scene
@@ -917,6 +1030,14 @@ void init_state(State &state) {
     state.plane.mesh    = create_plane();
     state.sphere.mesh   = create_sphere(32, 32);
     state.cylinder.mesh = create_cylinder(8, 32);
+
+    // Create MSAA FBO
+    if(state.msaa) {
+        state.msFBO = create_MSAA_FBO(WIDTH, HEIGHT, state.msaa_samples);
+    }
+
+    // Create shadow map texture and FBO
+    init_shadow_map(state);
 }
 
 int main() {
@@ -930,10 +1051,6 @@ int main() {
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
 
-    if(state.msaa) {
-        state.msFBO = create_MSAA_FBO(WIDTH, HEIGHT, state.msaa_samples);
-    }
-    
     // Render Loop
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();

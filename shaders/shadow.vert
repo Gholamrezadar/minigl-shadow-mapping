@@ -1,0 +1,19 @@
+#version 440 core
+
+// attributes
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aNormal;
+layout (location = 2) in vec2 aUV;
+
+// uniforms
+uniform mat4 uModel;
+uniform mat4 uView;
+uniform mat4 uProjection;
+
+void main() {
+
+    vec4 pos = vec4(aPos, 1.0);
+    mat4 PVM = uProjection * uView * uModel;
+    vec4 world_pos = PVM * pos;
+    gl_Position = world_pos; 
+}
