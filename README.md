@@ -36,6 +36,13 @@ cmake ..
 cmake --build .
 ```
 
+```bash
+# MSVC
+time cmake --build build -j && build/Debug/minigl_shadow_mapping.exe
+# Clang
+time cmake --build build -j && build/minigl_shadow_mapping.exe
+```
+
 ## Progress
 
 | Stage       | Image                                    |

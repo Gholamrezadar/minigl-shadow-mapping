@@ -1,10 +1,19 @@
 cmake_minimum_required(VERSION 4.0.0)
-project(minigl_hello_triangle)
+project(minigl_shadow_mapping)
 set(CMAKE_CXX_STANDARD 20)
 
 set(TARGET_NAME "minigl_shadow_mapping")
 
+# Enable timestamps for MSVC
+if (MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Bt")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /TIME")
+endif()
+
 # build GLFW (static by default)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 add_subdirectory(vendor/glfw)
 
 # build glad (static)
@@ -14,7 +23,7 @@ target_include_directories(glad PUBLIC vendor/glad/include/)
 # build imgui
 add_library(imgui
     vendor/imgui/imgui.cpp
-    vendor/imgui/imgui_demo.cpp
+    # vendor/imgui/imgui_demo.cpp
     vendor/imgui/imgui_draw.cpp
     vendor/imgui/imgui_tables.cpp
     vendor/imgui/imgui_widgets.cpp

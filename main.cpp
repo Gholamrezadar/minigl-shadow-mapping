@@ -20,10 +20,11 @@ int WIDTH = 1280;
 int HEIGHT = 720;
 
 enum MSAA_SAMPLES {
-    MSAA_SAMPLES_4 = 4,
-    MSAA_SAMPLES_8 = 8,
+    MSAA_SAMPLES_4  = 4,
+    MSAA_SAMPLES_8  = 8,
     MSAA_SAMPLES_16 = 16
 };
+
 
 struct PrimitiveState {
     bool visible = true;
@@ -103,13 +104,11 @@ State state = {
     },
     .sphere = {
         .visible = true,
-        // .visible = false,
         .position = glm::vec3(-0.8f, -0.25f, 0.0f),
         .scale = glm::vec3(0.5f)
     },
     .cylinder = {
         .visible = true,
-        // .visible = false,
         .position = glm::vec3(0.7f, 0.0f, 0.0f),
         .scale = glm::vec3(0.1f, 1.0f, 0.1f)
     }
@@ -367,8 +366,8 @@ void build_UI(State &state) {
             }
             if(ImGui::TreeNodeEx("Directional Light", ImGuiTreeNodeFlags_DefaultOpen)) {
                 ImGui::DragFloat3("Direction", &state.light.direction.x, 0.1f);
-                ImGui::ColorEdit3("Color", &state.light.color.x, 0.1f);
-                ImGui::ColorEdit3("Ambient", &state.light.ambient.x, 0.1f);
+                ImGui::ColorEdit3("Color", &state.light.color.x);
+                ImGui::ColorEdit3("Ambient", &state.light.ambient.x);
                 ImGui::DragFloat("Intensity", &state.light.intensity, 0.1f);
                 ImGui::DragFloat("Size", &state.light.size, 0.01f);
                 ImGui::TreePop();
@@ -854,11 +853,11 @@ int main() {
     
     // Shader
     GLuint shaderProgram = create_default_shader();
-        GLint uModelLoc = glGetUniformLocation(shaderProgram, "uModel");
-        GLint uViewLoc = glGetUniformLocation(shaderProgram, "uView");
+        GLint uModelLoc      = glGetUniformLocation(shaderProgram, "uModel");
+        GLint uViewLoc       = glGetUniformLocation(shaderProgram, "uView");
         GLint uProjectionLoc = glGetUniformLocation(shaderProgram, "uProjection");
-        glm::mat4 uModel = glm::mat4(1.0f);
-        glm::mat4 uView = glm::mat4(1.0f);
+        glm::mat4 uModel      = glm::mat4(1.0f);
+        glm::mat4 uView       = glm::mat4(1.0f);
         glm::mat4 uProjection = glm::mat4(1.0f);
         glUniformMatrix4fv(uModelLoc, 1, GL_FALSE, glm::value_ptr(uModel));
         glUniformMatrix4fv(uViewLoc, 1, GL_FALSE, glm::value_ptr(uView));
@@ -866,9 +865,9 @@ int main() {
         send_light_camera_data_to_shader(shaderProgram, state);
 
     // Scene
-    Mesh cube = create_cube();
-    Mesh plane = create_plane();
-    Mesh sphere = create_sphere(32, 32);
+    Mesh cube     = create_cube();
+    Mesh plane    = create_plane();
+    Mesh sphere   = create_sphere(32, 32);
     Mesh cylinder = create_cylinder(8, 32);
 
     // Render Loop
