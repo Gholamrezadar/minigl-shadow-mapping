@@ -96,6 +96,9 @@ struct State {
     float lightPosZ;
     float lightOrthoSize;
     float shininess;
+    bool pcf;
+    float pcf_radius;
+    bool pcf_poisson;
 };
 
 /// UTILS ///
@@ -411,6 +414,10 @@ void build_UI(State &state) {
                 ImGui::DragFloat("Light Ortho Size", &state.lightOrthoSize, 0.01f);
                 ImGui::DragFloat("Bias", &state.bias, 0.01f);
                 ImGui::DragFloat("Normal Bias", &state.normalBias, 0.01f);
+                ImGui::Checkbox("PCF", &state.pcf);
+                ImGui::Checkbox("PCF Poisson", &state.pcf_poisson);
+                ImGui::DragFloat("PCF Radius", &state.pcf_radius, 0.01f);
+
             ImGui::EndTabItem();
         }
 
@@ -921,9 +928,48 @@ void shadow_pass(
     return;
 }
 
-void main_pass(
-    State& state
-) {
+void send_shadow_stuff_to_shader(GLuint shaderProgram, State &state) {
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, state.shadowDepthTex);
+    glUniform1i(glGetUniformLocation(shaderProgram, "uShadowMap"), 0);
+
+    // light space matrix uniform
+    glUniformMatrix4fv(
+        glGetUniformLocation(shaderProgram, "uLightSpaceMatrix"),
+        1, GL_FALSE,
+        glm::value_ptr(state.lightSpaceMatrix)
+    );
+
+    // bias uniform
+    glUniform1f(
+        glGetUniformLocation(shaderProgram, "uBias"),
+        state.bias
+    );
+
+    // normal bias uniform
+    glUniform1f(
+        glGetUniformLocation(shaderProgram, "uNormalBias"),
+        state.normalBias
+    );
+
+    // PCF
+    glUniform1i(
+        glGetUniformLocation(shaderProgram, "uPCF"),
+        state.pcf
+    );
+
+    glUniform1f(
+        glGetUniformLocation(shaderProgram, "uPCFRadius"),
+        state.pcf_radius
+    );
+
+    glUniform1i(
+        glGetUniformLocation(shaderProgram, "uPCFPoisson"),
+        state.pcf_poisson
+    );
+}
+
+void main_pass(State& state) {
     if(state.msaa) 
         glBindFramebuffer(GL_FRAMEBUFFER, state.msFBO);
     else 
@@ -961,29 +1007,7 @@ void main_pass(
 
     send_light_camera_data_to_shader(state.default_shader, state);
 
-    // send shadow map to shader
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, state.shadowDepthTex);
-    glUniform1i(glGetUniformLocation(state.default_shader, "uShadowMap"), 0);
-
-    // light space matrix uniform
-    glUniformMatrix4fv(
-        glGetUniformLocation(state.default_shader, "uLightSpaceMatrix"),
-        1, GL_FALSE,
-        glm::value_ptr(state.lightSpaceMatrix)
-    );
-
-    // bias uniform
-    glUniform1f(
-        glGetUniformLocation(state.default_shader, "uBias"),
-        state.bias
-    );
-
-    // normal bias uniform
-    glUniform1f(
-        glGetUniformLocation(state.default_shader, "uNormalBias"),
-        state.normalBias
-    );
+    send_shadow_stuff_to_shader(state.default_shader, state);
 
     draw_primitive(state, state.cube,     state.default_shader, projection, view, state.a);
     draw_primitive(state, state.plane,    state.default_shader, projection, view, state.a);
@@ -1042,7 +1066,10 @@ void init_state(State &state) {
         .normalBias = 0.002f,
         .lightPosZ = 10.0f,
         .lightOrthoSize = 2.1f,
-        .shininess = 32.0f
+        .shininess = 32.0f,
+        .pcf = true,
+        .pcf_radius = 1.0f,
+        .pcf_poisson = false,
     };
 
     // Default Shader
