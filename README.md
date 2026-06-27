@@ -2,7 +2,7 @@
 
 Exploring _Shadow Mapping_ and it's various problems. for other examples search for "minigl" in my github repositories.
 
-![demo](demos/change_ambient.png)
+![demo](demos/whole_scene_shadow_poisson.png)
 
 ## TODO
 
@@ -10,7 +10,7 @@ Exploring _Shadow Mapping_ and it's various problems. for other examples search 
 - [x] Plane
 - [x] Sphere
 - [x] Cylinder
-- [x] Camera Movement
+- [ ] Camera Movement (Zoom + Orbit)
 - [x] Blinn-Phong
 - [x] Shadow Mapping
 - [x] Bias
@@ -18,21 +18,23 @@ Exploring _Shadow Mapping_ and it's various problems. for other examples search 
 - [x] PCF
 - [ ] PCSS
 - [ ] Jitter
+- [ ] Accumulation?
 
 ## Progress
 
-| Stage                          | Image                                           |
-| ------------------------------ | ----------------------------------------------- |
-| PCF Poisson high radius        | ![pcfpoisson](demos/pcfpoisson_high_radius.png) |
-| PCF 5x5 high radius            | ![pcfhighradius](demos/pcf5x5_high_radius.png)  |
-| PCF 5x5                        | ![pcf](demos/pcf5x5.png)                        |
-| Bias 0.0003, Normal Bias 0.002 | ![bias11](demos/bias0.0003_nbias_0.002.png)     |
-| Bias 0.0003, Normal Bias 0     | ![bias10](demos/bias0.0003_nbias_0.png)         |
-| Bias 0, Normal Bias 0          | ![bias00](demos/bias0_nbias_0.png)              |
-| Bias                           | ![bias](demos/shadow_bias.png)                  |
-| First Shadow                   | ![first_shadow](demos/first_shadow.png)         |
-| Blinn-Phong                    | ![blinn_phong](demos/change_ambient.png)        |
-| Scene done                     | ![scene_done](demos/scene_done.png)             |
+| Stage                          | Image                                                         |
+| ------------------------------ | ------------------------------------------------------------- |
+| Whole scene poisson            | ![wholescenepcfpoisson](demos/whole_scene_shadow_poisson.png) |
+| PCF Poisson high radius        | ![pcfpoisson](demos/pcfpoisson_high_radius.png)               |
+| PCF 5x5 high radius            | ![pcfhighradius](demos/pcf5x5_high_radius.png)                |
+| PCF 5x5                        | ![pcf](demos/pcf5x5.png)                                      |
+| Bias 0.0003, Normal Bias 0.002 | ![bias11](demos/bias0.0003_nbias_0.002.png)                   |
+| Bias 0.0003, Normal Bias 0     | ![bias10](demos/bias0.0003_nbias_0.png)                       |
+| Bias 0, Normal Bias 0          | ![bias00](demos/bias0_nbias_0.png)                            |
+| Bias                           | ![bias](demos/shadow_bias.png)                                |
+| First Shadow                   | ![first_shadow](demos/first_shadow.png)                       |
+| Blinn-Phong                    | ![blinn_phong](demos/change_ambient.png)                      |
+| Scene done                     | ![scene_done](demos/scene_done.png)                           |
 
 ## References
 

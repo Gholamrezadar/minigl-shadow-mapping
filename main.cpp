@@ -415,8 +415,8 @@ void build_UI(State &state) {
                 ImGui::DragFloat("Bias", &state.bias, 0.01f);
                 ImGui::DragFloat("Normal Bias", &state.normalBias, 0.01f);
                 ImGui::Checkbox("PCF", &state.pcf);
-                ImGui::Checkbox("PCF Poisson", &state.pcf_poisson);
                 ImGui::DragFloat("PCF Radius", &state.pcf_radius, 0.01f);
+                ImGui::Checkbox("PCF Poisson", &state.pcf_poisson);
 
             ImGui::EndTabItem();
         }
