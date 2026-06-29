@@ -42,7 +42,7 @@ float ShadowCalculation(vec4 fragWorldPos, vec3 N, vec3 L)
     proj = proj * 0.5 + 0.5;
 
     // PCSS
-    if (false) {
+    if (true) {
         const int POISSON_SAMPLES = 64;
 
         const vec2 poisson[64] = vec2[](

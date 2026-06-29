@@ -24,7 +24,8 @@ Exploring _Shadow Mapping_ and it's various problems. for other examples search 
 
 | Stage                                  | Image                                                         |
 | -------------------------------------- | ------------------------------------------------------------- |
-| PCSS (64 better poisson samples)       | ![PCSS](demos/PCSS_v2_64_poisson.png)                         |
+| PCSS large radius [BAD] [Banding, ...] | ![PCSS large](demos/pcss_large_radius_bad.png)                |
+| PCSS (64 better poisson samples)       | ![PCSS better](demos/PCSS_v2_64_poisson.png)                  |
 | Poisson samples generator (By Claude)  | ![generator](demos/poisson_generator.png)                     |
 | PCSS (64 poisson samples)              | ![PCSS](demos/PCSS_v1_64_poisson.png)                         |
 | Whole scene poisson large radius [BAD] | ![wholescenepcfpoisson](demos/poisson_large_radius_bad.png)   |
