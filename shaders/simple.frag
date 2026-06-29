@@ -42,8 +42,7 @@ float ShadowCalculation(vec4 fragWorldPos, vec3 N, vec3 L)
     proj = proj * 0.5 + 0.5;
 
     // PCSS
-    // PCSS: penumbra-size search, then variable-radius PCF
-    if (true) {
+    if (false) {
         const int POISSON_SAMPLES = 64;
 
         const vec2 poisson[64] = vec2[](
@@ -159,7 +158,7 @@ float ShadowCalculation(vec4 fragWorldPos, vec3 N, vec3 L)
         return shadow;
     }
 
-    if (true)
+    if (false)
     {
         float currentDepth = proj.z;
 
