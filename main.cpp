@@ -369,7 +369,7 @@ void build_UI(State &state) {
                 ImGui::ColorEdit3("Color", &state.light.color.x);
                 ImGui::ColorEdit3("Ambient", &state.light.ambient.x);
                 ImGui::DragFloat("Intensity", &state.light.intensity, 0.1f);
-                ImGui::DragFloat("Size", &state.light.size, 0.01f);
+                ImGui::DragFloat("Size", &state.light.size, 1.0f);
                 ImGui::DragFloat("Shininess", &state.shininess, 0.01f);
                 ImGui::TreePop();
             }
