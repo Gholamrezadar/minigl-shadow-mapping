@@ -199,10 +199,86 @@ float ShadowCalculation(vec4 fragWorldPos, vec3 N, vec3 L)
         shadow /= 64.0;
         return shadow;
     }
+
+    // PCSS
+    if (false)
+    {
+        float currentDepth = proj.z;
+
+        vec2 texelSize = 1.0 / vec2(textureSize(uShadowMap, 0));
+
+        // ---------------------------------------
+        // STEP 1: BLOCKER SEARCH
+        // ---------------------------------------
+        int blockerCount = 0;
+        float avgBlockerDepth = 0.0;
+
+        // small fixed kernel for blocker search
+        const int BLOCKER_SAMPLES = 16;
+
+        float blockerRadius = uPCFRadius * 2.0;
+
+        for (int i = 0; i < BLOCKER_SAMPLES; ++i)
+        {
+            // simple uniform disk sampling (can be improved later)
+            float angle = float(i) * 6.2831853 / float(BLOCKER_SAMPLES);
+            vec2 dir = vec2(cos(angle), sin(angle));
+
+            vec2 offset = dir * texelSize * blockerRadius;
+
+            float depth = texture(uShadowMap, proj.xy + offset).r;
+
+            // occluder test
+            if (depth < currentDepth - uBias)
+            {
+                avgBlockerDepth += depth;
+                blockerCount++;
+            }
+        }
+
+        // no blockers → fully lit
+        if (blockerCount == 0)
+            return 1.0;
+
+        avgBlockerDepth /= float(blockerCount);
+
+        // ---------------------------------------
+        // STEP 2: PENUMBRA ESTIMATION
+        // ---------------------------------------
+        float penumbra = (currentDepth - avgBlockerDepth) / avgBlockerDepth;
+
+        // scale factor to tune softness
+        penumbra *= uLightSize;
+
+        float filterRadius = penumbra * uPCFRadius;
+
+        // ---------------------------------------
+        // STEP 3: PCF WITH DYNAMIC RADIUS
+        // ---------------------------------------
+        const int PCSS_SAMPLES = 32;
+
+        float shadow = 0.0;
+
+        for (int i = 0; i < PCSS_SAMPLES; ++i)
+        {
+            float angle = float(i) * 6.2831853 / float(PCSS_SAMPLES);
+            vec2 dir = vec2(cos(angle), sin(angle));
+
+            vec2 offset = dir * texelSize * filterRadius;
+
+            float depth = texture(uShadowMap, proj.xy + offset).r;
+
+            shadow += (currentDepth > depth + uBias) ? 0.0 : 1.0;
+        }
+
+        shadow /= float(PCSS_SAMPLES);
+
+        return shadow;
+    }
 }
 
-    void main() {
-        vec3 N = normalize(normal);
+void main() {
+    vec3 N = normalize(normal);
     vec3 L = normalize(-uLightDirection);
     vec3 V = normalize(uCameraPos - world_pos.xyz);
     vec3 H = normalize(L + V);
