@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Poisson disk relaxer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: system-ui, sans-serif;
+    background: #1a1a1a;
+    color: #e0e0e0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 40px;
+  }
+
+  h1 {
+    font-size: 15px;
+    font-weight: 500;
+    color: #aaa;
+    margin-bottom: 20px;
+    letter-spacing: 0.02em;
+  }
+
+  #layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+    max-width: 960px;
+  }
+
+  canvas {
+    display: block;
+    border-radius: 10px;
+    background: #111;
+    border: 0.5px solid #333;
+    flex-shrink: 0;
+  }
+
+  #sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 220px;
+    max-width: 260px;
+    flex: 1;
+  }
+
+  .card {
+    background: #222;
+    border: 0.5px solid #333;
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+
+  .card-title {
+    font-size: 11px;
+    font-weight: 500;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 12px;
+  }
+
+  label {
+    font-size: 13px;
+    color: #999;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  label:last-child { margin-bottom: 0; }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 110px;
+    height: 3px;
+    background: #444;
+    border-radius: 2px;
+    outline: none;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #378add;
+    cursor: pointer;
+  }
+
+  .val {
+    font-size: 13px;
+    color: #ccc;
+    font-variant-numeric: tabular-nums;
+    min-width: 28px;
+    text-align: right;
+  }
+
+  button {
+    width: 100%;
+    padding: 9px 0;
+    border-radius: 7px;
+    border: 0.5px solid #444;
+    background: transparent;
+    color: #ccc;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+  }
+
+  button:hover { background: #2a2a2a; border-color: #555; }
+  button:active { background: #333; transform: scale(0.98); }
+
+  #btn-run {
+    background: #1a3a5c;
+    border-color: #378add;
+    color: #78b8f0;
+  }
+
+  #btn-run:hover { background: #1f4570; }
+  #btn-run.running { background: #3a1a1a; border-color: #dd5538; color: #f09090; }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 6px;
+  }
+
+  .stat-row:last-child { margin-bottom: 0; }
+  .stat-val { color: #ccc; font-variant-numeric: tabular-nums; }
+
+  /* GLSL output */
+  #output-wrap {
+    width: 100%;
+    max-width: 960px;
+    margin-top: 20px;
+  }
+
+  #output-card {
+    background: #111;
+    border: 0.5px solid #333;
+    border-radius: 10px;
+    padding: 16px;
+  }
+
+  #output-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  #output-header span {
+    font-size: 11px;
+    font-weight: 500;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  #btn-copy {
+    width: auto;
+    padding: 5px 14px;
+    font-size: 12px;
+    color: #888;
+    border-color: #333;
+  }
+
+  #btn-copy:hover { color: #ccc; }
+  #btn-copy.copied { color: #5cb85c; border-color: #3a6a3a; }
+
+  pre {
+    font-family: 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    color: #8be;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  #progress-bar-wrap {
+    width: 100%;
+    height: 3px;
+    background: #2a2a2a;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+
+  #progress-bar {
+    height: 100%;
+    background: #378add;
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.1s;
+  }
+</style>
+</head>
+<body>
+
+<h1>Poisson disk relaxer</h1>
+
+<div id="layout">
+  <canvas id="c"></canvas>
+
+  <div id="sidebar">
+    <div class="card">
+      <div class="card-title">Settings</div>
+
+      <label>
+        Points
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="range" id="num-points" min="8" max="64" step="1" value="16">
+          <span class="val" id="val-points">16</span>
+        </div>
+      </label>
+
+      <label>
+        Iterations
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="range" id="num-iters" min="10" max="300" step="10" value="100">
+          <span class="val" id="val-iters">100</span>
+        </div>
+      </label>
+
+      <label>
+        Speed
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="range" id="speed" min="1" max="20" step="1" value="3">
+          <span class="val" id="val-speed">3</span>
+        </div>
+      </label>
+
+      <label style="margin-top:4px">
+        Show unit circle
+        <input type="checkbox" id="show-circle" checked>
+      </label>
+
+      <label>
+        Show indices
+        <input type="checkbox" id="show-idx">
+      </label>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Status</div>
+      <div class="stat-row"><span>Iteration</span><span class="stat-val" id="stat-iter">—</span></div>
+      <div class="stat-row"><span>Max displacement</span><span class="stat-val" id="stat-disp">—</span></div>
+      <div class="stat-row"><span>Min spacing</span><span class="stat-val" id="stat-spacing">—</span></div>
+      <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+    </div>
+
+    <button id="btn-reset">New random set</button>
+    <button id="btn-run">Run relaxation</button>
+  </div>
+</div>
+
+<div id="output-wrap">
+  <div id="output-card">
+    <div id="output-header">
+      <span>GLSL output</span>
+      <button id="btn-copy">Copy</button>
+    </div>
+    <pre id="glsl-out">// run the relaxation to generate output</pre>
+  </div>
+</div>
+
+<script>
+// Canvas setup
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+// Controls
+const numPtsEl  = document.getElementById('num-points');
+const numIterEl = document.getElementById('num-iters');
+const speedEl   = document.getElementById('speed');
+const showCircEl= document.getElementById('show-circle');
+const showIdxEl = document.getElementById('show-idx');
+const btnReset  = document.getElementById('btn-reset');
+const btnRun    = document.getElementById('btn-run');
+const btnCopy   = document.getElementById('btn-copy');
+const glslOut   = document.getElementById('glsl-out');
+
+const statIter    = document.getElementById('stat-iter');
+const statDisp    = document.getElementById('stat-disp');
+const statSpacing = document.getElementById('stat-spacing');
+const progressBar = document.getElementById('progress-bar');
+
+// Bind range display
+function bindRange(el, display) {
+  display.textContent = el.value;
+  el.addEventListener('input', () => { display.textContent = el.value; });
+}
+bindRange(numPtsEl,  document.getElementById('val-points'));
+bindRange(numIterEl, document.getElementById('val-iters'));
+bindRange(speedEl,   document.getElementById('val-speed'));
+
+// State
+let points = [];
+let history = [];       // per-step snapshots for playback
+let animFrame = null;
+let running = false;
+let playIdx = 0;
+let converged = false;
+
+// Canvas size
+function resize() {
+  const maxW = Math.min(window.innerWidth - 300, 520);
+  const size = Math.max(320, maxW);
+  canvas.width = size;
+  canvas.height = size;
+  draw(points);
+}
+
+// Random points in unit disk using rejection sampling
+function randomInDisk(n) {
+  const pts = [];
+  while (pts.length < n) {
+    const x = Math.random() * 2 - 1;
+    const y = Math.random() * 2 - 1;
+    if (x * x + y * y <= 1) pts.push([x, y]);
+  }
+  return pts;
+}
+
+// Lloyd's relaxation step on unit disk
+// Each point moves toward the centroid of its Voronoi cell
+// approximated via nearest-neighbor weighted average
+function relaxStep(pts) {
+  const n = pts.length;
+  const newPts = pts.map(() => [0, 0]);
+  const weights = new Array(n).fill(0);
+
+  // Use a large set of random candidate positions inside the disk
+  // and assign each to nearest point, accumulate centroid
+  const samples = 2000;
+  for (let s = 0; s < samples; s++) {
+    let sx, sy;
+    do {
+      sx = Math.random() * 2 - 1;
+      sy = Math.random() * 2 - 1;
+    } while (sx * sx + sy * sy > 1);
+
+    let nearest = 0, minD2 = Infinity;
+    for (let i = 0; i < n; i++) {
+      const dx = sx - pts[i][0], dy = sy - pts[i][1];
+      const d2 = dx * dx + dy * dy;
+      if (d2 < minD2) { minD2 = d2; nearest = i; }
+    }
+    newPts[nearest][0] += sx;
+    newPts[nearest][1] += sy;
+    weights[nearest]++;
+  }
+
+  // Compute centroid; clamp to disk boundary if needed
+  let maxDisp = 0;
+  for (let i = 0; i < n; i++) {
+    if (weights[i] === 0) {
+      newPts[i] = [...pts[i]];
+      continue;
+    }
+    let nx = newPts[i][0] / weights[i];
+    let ny = newPts[i][1] / weights[i];
+
+    // Clamp to unit disk
+    const len = Math.sqrt(nx * nx + ny * ny);
+    if (len > 1) { nx /= len; ny /= len; }
+
+    const dx = nx - pts[i][0], dy = ny - pts[i][1];
+    maxDisp = Math.max(maxDisp, Math.sqrt(dx * dx + dy * dy));
+    newPts[i] = [nx, ny];
+  }
+  return { pts: newPts, maxDisp };
+}
+
+function minSpacing(pts) {
+  let min = Infinity;
+  for (let i = 0; i < pts.length; i++) {
+    for (let j = i + 1; j < pts.length; j++) {
+      const dx = pts[i][0] - pts[j][0], dy = pts[i][1] - pts[j][1];
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < min) min = d;
+    }
+  }
+  return min;
+}
+
+// Pre-compute all relaxation steps up front, then animate playback
+function computeRelaxation() {
+  const n   = parseInt(numPtsEl.value);
+  const iters = parseInt(numIterEl.value);
+  history = [points.map(p => [...p])];
+
+  let current = points.map(p => [...p]);
+  for (let i = 0; i < iters; i++) {
+    const { pts, maxDisp } = relaxStep(current);
+    history.push({ pts: pts.map(p => [...p]), maxDisp, iter: i + 1 });
+    current = pts;
+    if (maxDisp < 0.001) break;
+  }
+  return current;
+}
+
+// Draw a frame
+function draw(pts) {
+  if (!pts || !pts.length) return;
+  const w = canvas.width, h = canvas.height;
+  const cx = w / 2, cy = h / 2;
+  const r = w * 0.42;
+
+  ctx.clearRect(0, 0, w, h);
+
+  // Disc background
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.02)';
+  ctx.fill();
+
+  // Unit circle + crosshair
+  if (showCircEl.checked) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 5]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.beginPath();
+    ctx.moveTo(cx - r * 1.05, cy); ctx.lineTo(cx + r * 1.05, cy);
+    ctx.moveTo(cx, cy - r * 1.05); ctx.lineTo(cx, cy + r * 1.05);
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+
+  // Voronoi-ish neighbor lines
+  for (let i = 0; i < pts.length; i++) {
+    for (let j = i + 1; j < pts.length; j++) {
+      const d = Math.hypot(pts[i][0] - pts[j][0], pts[i][1] - pts[j][1]);
+      if (d < 0.6) {
+        const ax = cx + pts[i][0] * r, ay = cy + pts[i][1] * r;
+        const bx = cx + pts[j][0] * r, by = cy + pts[j][1] * r;
+        ctx.beginPath();
+        ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+        ctx.strokeStyle = 'rgba(55,138,221,0.07)';
+        ctx.lineWidth = 0.75;
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Points
+  for (let i = 0; i < pts.length; i++) {
+    const px = cx + pts[i][0] * r;
+    const py = cy + pts[i][1] * r;
+
+    ctx.beginPath();
+    ctx.arc(px, py, 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#378add';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(px, py, 4.5, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(55,138,221,0.3)';
+    ctx.lineWidth = 6;
+    ctx.stroke();
+
+    if (showIdxEl.checked) {
+      ctx.font = '10px monospace';
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.fillText(i, px + 8, py - 5);
+    }
+  }
+
+  // Origin
+  ctx.beginPath();
+  ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.fill();
+}
+
+function reset() {
+  cancelAnimationFrame(animFrame);
+  running = false;
+  history = [];
+  playIdx = 0;
+  btnRun.textContent = 'Run relaxation';
+  btnRun.classList.remove('running');
+  progressBar.style.width = '0%';
+  statIter.textContent = '—';
+  statDisp.textContent = '—';
+  statSpacing.textContent = '—';
+  glslOut.textContent = '// run the relaxation to generate output';
+
+  const n = parseInt(numPtsEl.value);
+  points = randomInDisk(n);
+  draw(points);
+}
+
+function startAnimation() {
+  if (running) {
+    // Pause
+    cancelAnimationFrame(animFrame);
+    running = false;
+    btnRun.textContent = 'Resume';
+    btnRun.classList.remove('running');
+    return;
+  }
+
+  if (history.length === 0) {
+    // First run: compute all steps
+    computeRelaxation();
+    playIdx = 0;
+  }
+
+  if (playIdx >= history.length) {
+    // Already done, re-run from scratch
+    reset();
+    computeRelaxation();
+    playIdx = 0;
+  }
+
+  running = true;
+  btnRun.textContent = 'Pause';
+  btnRun.classList.add('running');
+
+  const speed = parseInt(speedEl.value);
+  const totalSteps = history.length - 1;
+
+  function tick() {
+    if (!running) return;
+
+    // Advance multiple steps per frame based on speed
+    // history[0] is the raw initial points array, history[1..n] are relaxation step objects
+    for (let s = 0; s < speed && playIdx < history.length; s++) {
+      const frame = history[playIdx];
+      playIdx++;
+
+      // Skip the initial snapshot (not a relaxation step object)
+      if (!frame || !frame.pts) continue;
+
+      const { pts, maxDisp, iter } = frame;
+      draw(pts);
+      statIter.textContent = iter;
+      statDisp.textContent = maxDisp.toFixed(5);
+      statSpacing.textContent = minSpacing(pts).toFixed(4);
+      progressBar.style.width = ((iter / totalSteps) * 100).toFixed(1) + '%';
+
+      if (playIdx >= history.length) {
+        // Done
+        running = false;
+        btnRun.textContent = 'Run again';
+        btnRun.classList.remove('running');
+        progressBar.style.width = '100%';
+        outputGLSL(pts);
+        return;
+      }
+    }
+
+    animFrame = requestAnimationFrame(tick);
+  }
+
+  animFrame = requestAnimationFrame(tick);
+}
+
+function outputGLSL(pts) {
+  const n = pts.length;
+  const lines = pts.map(([x, y]) => {
+    const xs = (x >= 0 ? ' ' : '') + x.toFixed(8);
+    const ys = (y >= 0 ? ' ' : '') + y.toFixed(8);
+    return `    vec2(${xs}, ${ys})`;
+  });
+
+  const glsl =
+`const vec2 poisson[${n}] = vec2[](
+${lines.join(',\n')}
+);`;
+
+  glslOut.textContent = glsl;
+}
+
+function copyGLSL() {
+  const text = glslOut.textContent;
+  if (text.startsWith('//')) return;
+  navigator.clipboard.writeText(text).then(() => {
+    btnCopy.textContent = 'Copied!';
+    btnCopy.classList.add('copied');
+    setTimeout(() => {
+      btnCopy.textContent = 'Copy';
+      btnCopy.classList.remove('copied');
+    }, 1800);
+  });
+}
+
+// Wire up
+btnReset.addEventListener('click', reset);
+btnRun.addEventListener('click', startAnimation);
+btnCopy.addEventListener('click', copyGLSL);
+showCircEl.addEventListener('change', () => {
+  const pts = history.length && playIdx > 0
+    ? history[Math.min(playIdx - 1, history.length - 1)].pts || history[0]
+    : points;
+  draw(Array.isArray(pts[0]) ? pts : pts.map ? pts : points);
+});
+showIdxEl.addEventListener('change', () => draw(points));
+numPtsEl.addEventListener('change', reset);
+window.addEventListener('resize', resize);
+
+// Init
+resize();
+reset();
+</script>
+</body>
+</html>

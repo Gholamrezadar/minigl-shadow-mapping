@@ -24,6 +24,8 @@ Exploring _Shadow Mapping_ and it's various problems. for other examples search 
 
 | Stage                          | Image                                                         |
 | ------------------------------ | ------------------------------------------------------------- |
+| Poisson Generator (Claude)     | ![generator](demos/poisson_generator.png)                     |
+| PCSS (64 poisson samples 2)    | ![PCSS](demos/PCSS_v2_64_poisson.png)                         |
 | PCSS (64 poisson samples)      | ![PCSS](demos/PCSS_v1_64_poisson.png)                         |
 | Whole scene poisson            | ![wholescenepcfpoisson](demos/whole_scene_shadow_poisson.png) |
 | PCF Poisson high radius        | ![pcfpoisson](demos/pcfpoisson_high_radius.png)               |

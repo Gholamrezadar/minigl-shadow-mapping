@@ -1,0 +1,247 @@
+<style>
+body { margin: 0; }
+canvas { display: block; }
+#wrap { padding: 1rem 0; font-family: var(--font-sans); }
+#controls { display: flex; align-items: center; gap: 16px; margin-bottom: 1rem; flex-wrap: wrap; }
+label { font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; }
+#stats { font-size: 13px; color: var(--text-muted); margin-top: 0.75rem; }
+select { font-size: 13px; padding: 4px 8px; border-radius: var(--radius); border: 0.5px solid var(--border-strong); background: var(--surface-2); color: var(--text-primary); }
+</style>
+
+<div id="wrap">
+  <div id="controls">
+    <label>
+      Mode
+      <select id="mode">
+        <option value="dots">Dots</option>
+        <option value="lines">Lines + dots</option>
+        <option value="voronoi">Voronoi-ish cells</option>
+      </select>
+    </label>
+    <label>
+      <input type="checkbox" id="showIndex" /> Show index
+    </label>
+    <label>
+      <input type="checkbox" id="showRadius" /> Show unit circle
+    </label>
+    <label>
+      <input type="checkbox" id="showRotated" /> Preview rotated
+    </label>
+  </div>
+  <canvas id="c"></canvas>
+  <div id="stats"></div>
+</div>
+
+<script>
+const points = [
+  [-0.94201624,-0.39906216],[0.94558609,-0.76890725],[-0.09418410,-0.92938870],
+  [0.34495938,0.29387760],[-0.91588581,0.45771432],[-0.81544232,-0.87912464],
+  [-0.38277543,0.27676845],[0.97484398,0.75648379],[0.44323325,-0.97511554],
+  [0.53742981,-0.47373420],[-0.26496911,-0.41893023],[0.79197514,0.19090188],
+  [-0.24188840,0.99706507],[-0.81409955,0.91437590],[0.19984126,0.78641367],
+  [0.14383161,-0.14100790],[-0.49379003,0.66634812],[0.60162562,0.49561076],
+  [-0.71243374,-0.20872621],[0.28540695,0.69900621],[-0.13227908,0.45115040],
+  [0.73519237,-0.30561990],[-0.55257166,0.84144138],[0.17429148,-0.53865623],
+  [-0.33698258,-0.74039441],[0.83574929,0.36417668],[-0.07359774,-0.59874681],
+  [0.48753497,-0.67865692],[-0.62458476,0.32564970],[0.11172939,0.96217913],
+  [-0.86433626,-0.55483060],[0.65284279,-0.59239101],[-0.44315100,0.15528323],
+  [0.36818503,0.87795861],[-0.27045417,-0.17016055],[0.91781567,0.05419345],
+  [-0.58493742,0.54528481],[0.39961623,-0.29883191],[-0.16374069,0.74668698],
+  [0.69810146,0.71490699],[-0.74765376,-0.43267740],[0.22192483,0.34475912],
+  [-0.92772232,0.20716491],[0.50721456,-0.11855571],[-0.34265552,-0.92751162],
+  [0.76888658,-0.49029623],[-0.61532742,0.70419001],[0.04871579,-0.76987384],
+  [-0.20338682,0.22883975],[0.87278538,-0.15594491],[-0.46718676,-0.60497093],
+  [0.31893521,0.56798780],[-0.80059657,0.07638979],[0.58782800,0.80990577],
+  [-0.05249844,-0.38819902],[0.42846580,-0.82312202],[-0.67844507,0.12946322],
+  [0.24631582,-0.05148779],[-0.52793116,0.97650756],[0.71635002,-0.88335399],
+  [-0.89403088,-0.10590116],[0.08632727,0.60878550],[-0.33085176,-0.50374897],
+  [0.95920592,0.44419367]
+];
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const modeEl = document.getElementById('mode');
+const showIndexEl = document.getElementById('showIndex');
+const showRadiusEl = document.getElementById('showRadius');
+const showRotatedEl = document.getElementById('showRotated');
+const statsEl = document.getElementById('stats');
+
+let hovered = -1;
+let rotAngle = 0;
+let raf;
+
+function resize() {
+  const w = canvas.parentElement.clientWidth;
+  const size = Math.min(w, 520);
+  canvas.width = size;
+  canvas.height = size;
+  draw();
+}
+
+function toCanvas(px, py, cx, cy, r, angle) {
+  // Optional rotation preview
+  if (angle) {
+    const s = Math.sin(angle), c = Math.cos(angle);
+    const rx = c * px - s * py;
+    const ry = s * px + c * py;
+    px = rx; py = ry;
+  }
+  return [cx + px * r, cy + py * r];
+}
+
+function draw() {
+  const w = canvas.width, h = canvas.height;
+  const cx = w / 2, cy = h / 2;
+  const r = w * 0.42;
+  const mode = modeEl.value;
+  const showIdx = showIndexEl.checked;
+  const showR = showRadiusEl.checked;
+  const angle = showRotatedEl.checked ? rotAngle : 0;
+
+  ctx.clearRect(0, 0, w, h);
+
+  // Background disc
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  const isDark = document.documentElement.getAttribute('data-mode') === 'dark'
+    || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  ctx.fillStyle = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.025)';
+  ctx.fill();
+
+  // Unit circle outline
+  if (showR) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Crosshair
+    ctx.beginPath();
+    ctx.moveTo(cx - r * 1.05, cy); ctx.lineTo(cx + r * 1.05, cy);
+    ctx.moveTo(cx, cy - r * 1.05); ctx.lineTo(cx, cy + r * 1.05);
+    ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+
+  const mapped = points.map(([px, py]) => toCanvas(px, py, cx, cy, r, angle));
+
+  // Lines between each point and origin (voronoi-ish)
+  if (mode === 'voronoi') {
+    for (let i = 0; i < mapped.length; i++) {
+      for (let j = i + 1; j < mapped.length; j++) {
+        const d = Math.hypot(mapped[i][0] - mapped[j][0], mapped[i][1] - mapped[j][1]);
+        if (d < r * 0.55) {
+          ctx.beginPath();
+          ctx.moveTo(mapped[i][0], mapped[i][1]);
+          ctx.lineTo(mapped[j][0], mapped[j][1]);
+          ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
+          ctx.lineWidth = 0.75;
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  // Lines from origin (lines mode)
+  if (mode === 'lines') {
+    for (let i = 0; i < mapped.length; i++) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(mapped[i][0], mapped[i][1]);
+      ctx.strokeStyle = i === hovered
+        ? 'rgba(55,138,221,0.5)'
+        : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)');
+      ctx.lineWidth = i === hovered ? 1.5 : 0.75;
+      ctx.stroke();
+    }
+  }
+
+  // Dots
+  for (let i = 0; i < mapped.length; i++) {
+    const [px, py] = mapped[i];
+    const isHov = i === hovered;
+    const dotR = isHov ? 6 : 4;
+
+    ctx.beginPath();
+    ctx.arc(px, py, dotR, 0, Math.PI * 2);
+    ctx.fillStyle = isHov ? '#378add' : (isDark ? 'rgba(255,255,255,0.75)' : 'rgba(30,30,30,0.75)');
+    ctx.fill();
+
+    if (isHov) {
+      ctx.beginPath();
+      ctx.arc(px, py, dotR + 3, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(55,138,221,0.35)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    if (showIdx) {
+      ctx.font = `10px var(--font-mono, monospace)`;
+      ctx.fillStyle = isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)';
+      ctx.fillText(i, px + 7, py - 5);
+    }
+  }
+
+  // Origin dot
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+  ctx.fillStyle = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)';
+  ctx.fill();
+
+  // Stats on hover
+  if (hovered >= 0) {
+    const [px, py] = points[hovered];
+    const dist = Math.sqrt(px * px + py * py);
+    statsEl.textContent = `#${hovered}  (${px.toFixed(5)}, ${py.toFixed(5)})  |  dist from origin: ${dist.toFixed(4)}`;
+  } else {
+    statsEl.textContent = `64 samples  |  hover a point for details`;
+  }
+}
+
+// Rotation animation
+function animate() {
+  if (showRotatedEl.checked) {
+    rotAngle += 0.008;
+    draw();
+    raf = requestAnimationFrame(animate);
+  }
+}
+
+showRotatedEl.addEventListener('change', () => {
+  cancelAnimationFrame(raf);
+  if (showRotatedEl.checked) animate();
+  else draw();
+});
+
+// Hover detection
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+  const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+  const cx = canvas.width / 2, cy = canvas.height / 2;
+  const r = canvas.width * 0.42;
+  const angle = showRotatedEl.checked ? rotAngle : 0;
+
+  let closest = -1, minD = 14;
+  points.forEach(([px, py], i) => {
+    const [sx, sy] = toCanvas(px, py, cx, cy, r, angle);
+    const d = Math.hypot(mx - sx, my - sy);
+    if (d < minD) { minD = d; closest = i; }
+  });
+
+  if (closest !== hovered) { hovered = closest; draw(); }
+});
+
+canvas.addEventListener('mouseleave', () => { hovered = -1; draw(); });
+
+modeEl.addEventListener('change', draw);
+showIndexEl.addEventListener('change', draw);
+showRadiusEl.addEventListener('change', draw);
+
+window.addEventListener('resize', resize);
+resize();
+</script>
