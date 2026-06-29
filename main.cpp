@@ -990,7 +990,7 @@ void update_camera_position(State &state) {
     double mouse_x, mouse_y;
     glfwGetCursorPos(state.window, &mouse_x, &mouse_y);
 
-    if(glfwGetMouseButton(state.window, 0) == GLFW_PRESS) {
+    if(glfwGetMouseButton(state.window, 1) == GLFW_PRESS) {
         // Compute mouse delta (horizontal drag only for yaw rotation)
         float delta_x = -1 * static_cast<float>(mouse_x - state.last_mouse_x);
         state.last_mouse_x = static_cast<float>(mouse_x);
@@ -1015,7 +1015,7 @@ void update_camera_position(State &state) {
         state.camera.position = state.camera.target + glm::vec3(rotated_offset);
     }
 
-    if(glfwGetMouseButton(state.window, 0) == GLFW_RELEASE) {
+    if(glfwGetMouseButton(state.window, 1) == GLFW_RELEASE) {
         state.last_mouse_x = static_cast<float>(mouse_x);
     }
 
