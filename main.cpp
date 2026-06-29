@@ -99,6 +99,13 @@ struct State {
     bool pcf;
     float pcf_radius;
     bool pcf_poisson;
+
+    GLFWwindow* window;
+    float last_mouse_x;
+    float camera_rotation_speed;
+    float camera_current_rotation;
+
+    double scroll_value;
 };
 
 /// UTILS ///
@@ -190,6 +197,12 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
 }
 
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
+    State* state = static_cast<State*>(glfwGetWindowUserPointer(window));
+    state->scroll_value = yoffset;
+
+}
+
 GLFWwindow* init_window(int width, int height, State &state) {
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW\n";
@@ -202,6 +215,8 @@ GLFWwindow* init_window(int width, int height, State &state) {
 
     GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "MiniGL - Shadow Mapping", nullptr, nullptr);
     glfwSetWindowUserPointer(window, &state); // for resizing callback to work
+    glfwSetScrollCallback(window, scroll_callback);
+
 
     if (!window) {
         std::cerr << "Failed to create GLFW window\n";
@@ -299,6 +314,7 @@ void build_UI(State &state) {
             ImGui::SliderFloat("fov", &state.camera.fov, 0.0f, 360.0f);
             ImGui::DragFloat3("Position", &state.camera.position.x, 0.1f);
             ImGui::DragFloat3("Target", &state.camera.target.x, 0.1f);
+            ImGui::DragFloat("Camera Rotation Speed", &state.camera_rotation_speed, 0.02f);
             ImGui::EndTabItem();
         }
 
@@ -969,6 +985,46 @@ void send_shadow_stuff_to_shader(GLuint shaderProgram, State &state) {
     );
 }
 
+void update_camera_position(State &state) {
+    // Get current mouse position from GLFW
+    double mouse_x, mouse_y;
+    glfwGetCursorPos(state.window, &mouse_x, &mouse_y);
+
+    if(glfwGetMouseButton(state.window, 0) == GLFW_PRESS) {
+        // Compute mouse delta (horizontal drag only for yaw rotation)
+        float delta_x = -1 * static_cast<float>(mouse_x - state.last_mouse_x);
+        state.last_mouse_x = static_cast<float>(mouse_x);
+
+        // Scale mouse movement by sensitivity
+        float rotation_delta = delta_x * state.camera_rotation_speed;
+
+        // Compute camera offset relative to target
+        glm::vec3 offset = state.camera.position - state.camera.target;
+
+        // Create Y-axis rotation matrix
+        glm::mat4 rotation = glm::rotate(
+            glm::mat4(1.0f),
+            glm::radians(rotation_delta),
+            glm::vec3(0.0f, 1.0f, 0.0f)
+        );
+
+        // Apply rotation to offset vector (orbit around target)
+        glm::vec4 rotated_offset = rotation * glm::vec4(offset, 1.0f);
+
+        // Compute new camera position
+        state.camera.position = state.camera.target + glm::vec3(rotated_offset);
+    }
+
+    if(glfwGetMouseButton(state.window, 0) == GLFW_RELEASE) {
+        state.last_mouse_x = static_cast<float>(mouse_x);
+    }
+
+    // Scroll to zoom
+    #define SCROLL_SPEED 3.0;
+    state.camera.fov -= state.scroll_value * SCROLL_SPEED;
+    state.scroll_value = 0.0;
+}
+
 void main_pass(State& state) {
     if(state.msaa) 
         glBindFramebuffer(GL_FRAMEBUFFER, state.msFBO);
@@ -987,6 +1043,8 @@ void main_pass(State& state) {
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     else
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    
+    update_camera_position(state);
     
     // PROJECTION
     glm::mat4 projection = glm::perspective(
@@ -1019,7 +1077,7 @@ void main_pass(State& state) {
     }
 }
 
-void init_state(State &state) {
+void init_state(State &state, GLFWwindow* window) {
     state = {
         .clear_color = glm::vec3(0.28f, 0.35f, 0.4f),
         .camera = {
@@ -1062,14 +1120,17 @@ void init_state(State &state) {
             .visible = true
         },
         .SHADOW_SIZE = 2048,
-        .bias = 0.0003f,
-        .normalBias = 0.002f,
+        .bias = 0.0006f,
+        .normalBias = 0.004f,
         .lightPosZ = 10.0f,
         .lightOrthoSize = 2.1f,
         .shininess = 32.0f,
         .pcf = true,
-        .pcf_radius = 1.0f,
-        .pcf_poisson = false,
+        .pcf_radius = 2.5f,
+        .pcf_poisson = true,
+        .window = window,
+        .last_mouse_x = 0.0f,
+        .camera_rotation_speed = 0.3f,
     };
 
     // Default Shader
@@ -1099,10 +1160,10 @@ int main() {
     GLFWwindow* window = init_window(WIDTH, HEIGHT, state);
 
     // Create world, shaders, ...
-    init_state(state);
+    init_state(state, window);
 
     // Closeup Sphere
-    if(true) {
+    if(false) {
         state.sphere.position = glm::vec3(0.0f, -0.25f, 0.0f);
         state.sphere.visible = true;
         state.plane.visible = true;
