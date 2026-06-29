@@ -16,7 +16,7 @@ Exploring _Shadow Mapping_ and it's various problems. for other examples search 
 - [x] Bias
 - [x] Normal Bias
 - [x] PCF
-- [ ] PCSS
+- [x] PCSS
 - [ ] Jitter
 - [ ] Accumulation?
 
@@ -24,6 +24,7 @@ Exploring _Shadow Mapping_ and it's various problems. for other examples search 
 
 | Stage                          | Image                                                         |
 | ------------------------------ | ------------------------------------------------------------- |
+| PCSS (64 poisson samples)      | ![PCSS](demos/PCSS_v1_64_poisson.png)                         |
 | Whole scene poisson            | ![wholescenepcfpoisson](demos/whole_scene_shadow_poisson.png) |
 | PCF Poisson high radius        | ![pcfpoisson](demos/pcfpoisson_high_radius.png)               |
 | PCF 5x5 high radius            | ![pcfhighradius](demos/pcf5x5_high_radius.png)                |

@@ -1090,7 +1090,7 @@ void init_state(State &state, GLFWwindow* window) {
             .color = glm::vec3(1.0f, 1.0f, 1.0f),
             .ambient = glm::vec3(0.075f, 0.161f, 0.235f),
             .intensity = 0.8f,
-            .size = 0.001f
+            .size = 60.0f
         },
         .a = 0.0f,
         .frame_count = 1,
