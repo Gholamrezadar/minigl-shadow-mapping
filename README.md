@@ -10,7 +10,7 @@ Exploring _Shadow Mapping_ and it's various problems. for other examples search 
 - [x] Plane
 - [x] Sphere
 - [x] Cylinder
-- [ ] Camera Movement (Zoom + Orbit)
+- [x] Camera Movement (Zoom + Orbit)
 - [x] Blinn-Phong
 - [x] Shadow Mapping
 - [x] Bias
