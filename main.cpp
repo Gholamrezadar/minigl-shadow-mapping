@@ -16,6 +16,10 @@
 #include <string>
 #include <vector>
 
+#include <vector>
+#include <string>
+#include <cfloat>
+
 // Globals // 
 int WIDTH = 1280;
 int HEIGHT = 720;
@@ -55,6 +59,12 @@ struct DirectionalLight {
     glm::vec3 ambient;
     float intensity;
     float size;
+};
+
+
+struct MetricHistory {
+    std::vector<float> samples;
+    std::vector<float> timestamps; // seconds since profiler start, used to prune old samples
 };
 
 struct State {
@@ -106,6 +116,22 @@ struct State {
     float camera_current_rotation;
 
     double scroll_value;
+
+    // Drawer UI state (AI)
+    bool drawerOpen = false;
+    float drawerHeight = 0.0f;       // current animated height
+    float drawerHeaderH = 40.0f;
+    float drawerMaxHeight = 300.0f;
+    float drawerAnimSpeed = 9.0f; // higher = snappier
+    bool display_ui = true;
+
+    // (AI)
+    // Ordered list so tabs stay in a consistent order, add new metrics wherever you push samples
+    std::vector<std::pair<std::string, MetricHistory>> profilerMetrics;
+    float profilerTime = 0.0f; // running clock, advances by DeltaTime each frame
+    static constexpr float kProfilerHistorySeconds = 5.0f;
+
+    bool vsync = true;
 };
 
 /// UTILS ///
@@ -203,6 +229,100 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
 
 }
 
+// Key press callback
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    if(action != GLFW_PRESS) return;
+    State* state = static_cast<State*>(glfwGetWindowUserPointer(window));
+
+    if(key == GLFW_KEY_F1) {
+        state->display_ui = !state->display_ui;
+    }
+}
+
+
+// ImGui Theme by janekb04(https://github.com/janekb04), Find more themes at https://github.com/ocornut/imgui/issues/707
+void EmbraceTheDarkness()
+{
+    ImVec4* colors = ImGui::GetStyle().Colors;
+    colors[ImGuiCol_Text]                   = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
+    colors[ImGuiCol_TextDisabled]           = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
+    colors[ImGuiCol_WindowBg]               = ImVec4(0.10f, 0.10f, 0.10f, 1.00f);
+    colors[ImGuiCol_ChildBg]                = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    colors[ImGuiCol_PopupBg]                = ImVec4(0.19f, 0.19f, 0.19f, 0.92f);
+    colors[ImGuiCol_Border]                 = ImVec4(0.19f, 0.19f, 0.19f, 0.29f);
+    colors[ImGuiCol_BorderShadow]           = ImVec4(0.00f, 0.00f, 0.00f, 0.24f);
+    colors[ImGuiCol_FrameBg]                = ImVec4(0.05f, 0.05f, 0.05f, 0.54f);
+    colors[ImGuiCol_FrameBgHovered]         = ImVec4(0.19f, 0.19f, 0.19f, 0.54f);
+    colors[ImGuiCol_FrameBgActive]          = ImVec4(0.20f, 0.22f, 0.23f, 1.00f);
+    colors[ImGuiCol_TitleBg]                = ImVec4(0.00f, 0.00f, 0.00f, 1.00f);
+    colors[ImGuiCol_TitleBgActive]          = ImVec4(0.06f, 0.06f, 0.06f, 1.00f);
+    colors[ImGuiCol_TitleBgCollapsed]       = ImVec4(0.00f, 0.00f, 0.00f, 1.00f);
+    colors[ImGuiCol_MenuBarBg]              = ImVec4(0.14f, 0.14f, 0.14f, 1.00f);
+    colors[ImGuiCol_ScrollbarBg]            = ImVec4(0.05f, 0.05f, 0.05f, 0.54f);
+    colors[ImGuiCol_ScrollbarGrab]          = ImVec4(0.34f, 0.34f, 0.34f, 0.54f);
+    colors[ImGuiCol_ScrollbarGrabHovered]   = ImVec4(0.40f, 0.40f, 0.40f, 0.54f);
+    colors[ImGuiCol_ScrollbarGrabActive]    = ImVec4(0.56f, 0.56f, 0.56f, 0.54f);
+    colors[ImGuiCol_CheckMark]              = ImVec4(0.33f, 0.67f, 0.86f, 1.00f);
+    colors[ImGuiCol_SliderGrab]             = ImVec4(0.34f, 0.34f, 0.34f, 0.54f);
+    colors[ImGuiCol_SliderGrabActive]       = ImVec4(0.56f, 0.56f, 0.56f, 0.54f);
+    colors[ImGuiCol_Button]                 = ImVec4(0.05f, 0.05f, 0.05f, 0.54f);
+    colors[ImGuiCol_ButtonHovered]          = ImVec4(0.19f, 0.19f, 0.19f, 0.54f);
+    colors[ImGuiCol_ButtonActive]           = ImVec4(0.20f, 0.22f, 0.23f, 1.00f);
+    colors[ImGuiCol_Header]                 = ImVec4(0.00f, 0.00f, 0.00f, 0.52f);
+    colors[ImGuiCol_HeaderHovered]          = ImVec4(0.00f, 0.00f, 0.00f, 0.36f);
+    colors[ImGuiCol_HeaderActive]           = ImVec4(0.20f, 0.22f, 0.23f, 0.33f);
+    colors[ImGuiCol_Separator]              = ImVec4(0.28f, 0.28f, 0.28f, 0.29f);
+    colors[ImGuiCol_SeparatorHovered]       = ImVec4(0.44f, 0.44f, 0.44f, 0.29f);
+    colors[ImGuiCol_SeparatorActive]        = ImVec4(0.40f, 0.44f, 0.47f, 1.00f);
+    colors[ImGuiCol_ResizeGrip]             = ImVec4(0.28f, 0.28f, 0.28f, 0.29f);
+    colors[ImGuiCol_ResizeGripHovered]      = ImVec4(0.44f, 0.44f, 0.44f, 0.29f);
+    colors[ImGuiCol_ResizeGripActive]       = ImVec4(0.40f, 0.44f, 0.47f, 1.00f);
+    colors[ImGuiCol_Tab]                    = ImVec4(0.00f, 0.00f, 0.00f, 0.52f);
+    colors[ImGuiCol_TabHovered]             = ImVec4(0.14f, 0.14f, 0.14f, 1.00f);
+    colors[ImGuiCol_TabActive]              = ImVec4(0.20f, 0.20f, 0.20f, 0.36f);
+    colors[ImGuiCol_TabUnfocused]           = ImVec4(0.00f, 0.00f, 0.00f, 0.52f);
+    colors[ImGuiCol_TabUnfocusedActive]     = ImVec4(0.14f, 0.14f, 0.14f, 1.00f);
+    colors[ImGuiCol_PlotLines]              = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
+    colors[ImGuiCol_PlotLinesHovered]       = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
+    colors[ImGuiCol_PlotHistogram]          = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
+    colors[ImGuiCol_PlotHistogramHovered]   = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
+    colors[ImGuiCol_TableHeaderBg]          = ImVec4(0.00f, 0.00f, 0.00f, 0.52f);
+    colors[ImGuiCol_TableBorderStrong]      = ImVec4(0.00f, 0.00f, 0.00f, 0.52f);
+    colors[ImGuiCol_TableBorderLight]       = ImVec4(0.28f, 0.28f, 0.28f, 0.29f);
+    colors[ImGuiCol_TableRowBg]             = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    colors[ImGuiCol_TableRowBgAlt]          = ImVec4(1.00f, 1.00f, 1.00f, 0.06f);
+    colors[ImGuiCol_TextSelectedBg]         = ImVec4(0.20f, 0.22f, 0.23f, 1.00f);
+    colors[ImGuiCol_DragDropTarget]         = ImVec4(0.33f, 0.67f, 0.86f, 1.00f);
+    colors[ImGuiCol_NavHighlight]           = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
+    colors[ImGuiCol_NavWindowingHighlight]  = ImVec4(1.00f, 0.00f, 0.00f, 0.70f);
+    colors[ImGuiCol_NavWindowingDimBg]      = ImVec4(1.00f, 0.00f, 0.00f, 0.20f);
+    colors[ImGuiCol_ModalWindowDimBg]       = ImVec4(1.00f, 0.00f, 0.00f, 0.35f);
+
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.WindowPadding                     = ImVec2(8.00f, 8.00f);
+    style.FramePadding                      = ImVec2(5.00f, 2.00f);
+    style.CellPadding                       = ImVec2(6.00f, 6.00f);
+    style.ItemSpacing                       = ImVec2(6.00f, 6.00f);
+    style.ItemInnerSpacing                  = ImVec2(6.00f, 6.00f);
+    style.TouchExtraPadding                 = ImVec2(0.00f, 0.00f);
+    style.IndentSpacing                     = 25;
+    style.ScrollbarSize                     = 15;
+    style.GrabMinSize                       = 10;
+    style.WindowBorderSize                  = 1;
+    style.ChildBorderSize                   = 1;
+    style.PopupBorderSize                   = 1;
+    style.FrameBorderSize                   = 1;
+    style.TabBorderSize                     = 1;
+    style.WindowRounding                    = 7;
+    style.ChildRounding                     = 4;
+    style.FrameRounding                     = 3;
+    style.PopupRounding                     = 4;
+    style.ScrollbarRounding                 = 9;
+    style.GrabRounding                      = 3;
+    style.LogSliderDeadzone                 = 4;
+    style.TabRounding                       = 4;
+}
+
 GLFWwindow* init_window(int width, int height, State &state) {
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW\n";
@@ -216,6 +336,7 @@ GLFWwindow* init_window(int width, int height, State &state) {
     GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "MiniGL - Shadow Mapping", nullptr, nullptr);
     glfwSetWindowUserPointer(window, &state); // for resizing callback to work
     glfwSetScrollCallback(window, scroll_callback);
+    glfwSetKeyCallback(window, key_callback);
 
 
     if (!window) {
@@ -226,7 +347,7 @@ GLFWwindow* init_window(int width, int height, State &state) {
 
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-    glfwSwapInterval(1); // Vsync on: 1, Vsync off: 0
+    glfwSwapInterval(state.vsync ? 1 : 0); // Vsync on: 1, Vsync off: 0
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         std::cerr << "Failed to initialize GLAD\n";
@@ -244,6 +365,7 @@ GLFWwindow* init_window(int width, int height, State &state) {
     );
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 440");
+    EmbraceTheDarkness();
 
     return window;
 }
@@ -296,17 +418,107 @@ void resolve_MSAA(GLuint msFBO, int width, int height) {
 
 
 /// UI ///
+// (AI)
+void PushProfilerSample(State& state, const char* name, float value) {
+    for (auto& [metricName, history] : state.profilerMetrics) {
+        if (metricName == name) {
+            history.samples.push_back(value);
+            history.timestamps.push_back(state.profilerTime);
+            // Drop samples that fell outside the 30 second window
+            while (!history.timestamps.empty() &&
+                   state.profilerTime - history.timestamps.front() > state.kProfilerHistorySeconds) {
+                history.samples.erase(history.samples.begin());
+                history.timestamps.erase(history.timestamps.begin());
+            }
+            return;
+        }
+    }
+    // First time seeing this metric name, create its history
+    MetricHistory history;
+    history.samples.push_back(value);
+    history.timestamps.push_back(state.profilerTime);
+    state.profilerMetrics.push_back({name, history});
+}
+void RenderProfilerDrawer(State& state) {
+    ImGuiIO& io = ImGui::GetIO();
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+
+    // Animate toward target height (open = full, closed = just the header)
+    float target = state.drawerOpen ? state.drawerMaxHeight : state.drawerHeaderH;
+    float t = io.DeltaTime * state.drawerAnimSpeed;
+    if (t > 1.0f) t = 1.0f;
+    state.drawerHeight += (target - state.drawerHeight) * t;
+
+    // Anchor bottom edge to the bottom of the screen, width spans full viewport
+    ImVec2 winSize(viewport->Size.x, state.drawerHeight);
+    ImVec2 winPos(viewport->Pos.x, viewport->Pos.y + viewport->Size.y - state.drawerHeight);
+    ImGui::SetNextWindowPos(winPos);
+    ImGui::SetNextWindowSize(winSize);
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize
+        | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse
+        | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+
+    state.profilerTime += io.DeltaTime;
+    const float dt_ms = 1000.0f * io.DeltaTime;
+
+    // display fps + frame time in title using sprintf
+    char titleBuf[256];
+    std::snprintf(titleBuf, sizeof(titleBuf),
+                "Profiler - %.1f fps (%.2f ms)", io.Framerate, dt_ms);
+
+    
+    ImGui::Begin("title", nullptr, flags);
+
+    // Custom header, click anywhere on it to toggle
+    if (ImGui::Button("Profiler", ImVec2(-1, state.drawerHeaderH - 15))) {
+        state.drawerOpen = !state.drawerOpen;
+    }
+
+    // Only draw content once there's room, avoids clipping glitches while collapsed
+    if (state.drawerHeight > state.drawerHeaderH + 5.0f) {
+
+        // Feed this frame's values into their metric histories
+        PushProfilerSample(state, "fps", io.Framerate);
+        PushProfilerSample(state, "frame_time", dt_ms);
+        std::vector<std::pair<float, float>> min_max_ranges = {
+            {0.0f, 2000.0f},
+            {0.0f, 33.33f},
+        };
+
+        ImGui::Text("%.1f fps (%.2f ms frametime)", io.Framerate, dt_ms);
+
+        // Tabs, one per metric, each graph spans the full drawer width
+        if (ImGui::BeginTabBar("ProfilerTabs")) {
+            for (auto& [name, history] : state.profilerMetrics) {
+                if (ImGui::BeginTabItem(name.c_str())) {
+                    if (!history.samples.empty()) {
+                        ImGui::PlotLines("##graph", history.samples.data(),
+                            (int)history.samples.size(), 0, nullptr,
+                            FLT_MAX, FLT_MAX, ImVec2(-1, -1));
+                    }
+                    ImGui::EndTabItem();
+                }
+            }
+            ImGui::EndTabBar();
+        }
+    }
+    ImGui::End();
+}
+
 void build_UI(State &state) {
     // Imgui stuff
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+
+    if (!state.display_ui) {
+        ImGui::Render();
+        return;
+    }
+
+    // Settings panel
     ImGui::Begin("Settings");
 
-    // FPS counter
-    ImGui::Text("%.1f fps (%.0f avg)", ImGui::GetIO().Framerate, state.avg_fps);
-    state.sum_fps += ImGui::GetIO().Framerate;
-    state.avg_fps = state.sum_fps / state.frame_count;
 
     if(ImGui::BeginTabBar("Settings")) {
         if(ImGui::BeginTabItem("Camera")) {
@@ -377,6 +589,11 @@ void build_UI(State &state) {
         }
         if(ImGui::BeginTabItem("Rendering")) {
 
+            // VSync
+            if(ImGui::Checkbox("VSync", &state.vsync)) {
+                glfwSwapInterval(state.vsync ? 1 : 0);
+            }
+
             // Wireframe
             ImGui::Checkbox("Wireframe", &state.wireframe);
 
@@ -441,6 +658,10 @@ void build_UI(State &state) {
     }
 
     ImGui::End();
+
+    // Profiler Drawer
+    RenderProfilerDrawer(state);
+
     ImGui::Render();
 }
 
@@ -1018,6 +1239,11 @@ void update_camera_position(State &state) {
     if(glfwGetMouseButton(state.window, 1) == GLFW_RELEASE) {
         state.last_mouse_x = static_cast<float>(mouse_x);
     }
+
+    // // Toggle UI (F1)
+    // if(glfwGetKey(state.window, GLFW_KEY_F1) == GLFW_PRESS) {
+    //     state.display_profiler = !state.display_profiler;
+    // }
 
     // Scroll to zoom
     #define SCROLL_SPEED 3.0;
