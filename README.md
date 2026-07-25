@@ -4,6 +4,10 @@ Exploring _Shadow Mapping_ and it's various problems. for other examples search 
 
 ![demo](demos/whole_scene_shadow_poisson.png)
 
+## Video 
+
+https://github.com/user-attachments/assets/86099047-0858-4ace-974e-457b7fb4af65
+
 ## TODO
 
 - [x] Cube
