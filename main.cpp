@@ -644,7 +644,7 @@ void build_UI(State &state) {
             
             ImGui::EndTabItem();
         }
-        if(ImGui::BeginTabItem("Shadow Map", nullptr, ImGuiTabItemFlags_SetSelected)) {
+        if(ImGui::BeginTabItem("Shadow Map")) {
                 // Shadow map preview 
                 ImGui::Image(
                     (ImTextureID)(intptr_t)state.shadowDepthTex,
