@@ -32,6 +32,14 @@ enum MSAA_SAMPLES {
     MSAA_SAMPLES_16 = 16
 };
 
+enum class ShadowMode {
+    Hard = 0,
+    PCF,
+    PCFPoisson16,
+    PCFPoisson64,
+    PCSS
+};
+
 struct Mesh {
     GLuint vao = 0;
     GLuint vbo = 0;
@@ -106,9 +114,9 @@ struct State {
     float lightPosZ;
     float lightOrthoSize;
     float shininess;
-    bool pcf;
-    float pcf_radius;
-    bool pcf_poisson;
+    float shadow_radius;
+
+    ShadowMode shadow_mode;
 
     GLFWwindow* window;
     float last_mouse_x;
@@ -636,20 +644,35 @@ void build_UI(State &state) {
             
             ImGui::EndTabItem();
         }
-        if(ImGui::BeginTabItem("Shadow Map")) {
+        if(ImGui::BeginTabItem("Shadow Map", nullptr, ImGuiTabItemFlags_SetSelected)) {
+                // Shadow map preview 
                 ImGui::Image(
                     (ImTextureID)(intptr_t)state.shadowDepthTex,
                     ImVec2(200, 200),
                     ImVec2(0, 1),   // UV0
                     ImVec2(1, 0)    // UV1 (flip vertically)
                 );
+
+                // Shadowmap mode combobox
+                static const char* shadow_mode_names[] = {
+                    "Hard Shadow",
+                    "PCF 5x5",
+                    "PCF Poisson (16 Samples)",
+                    "PCF Poisson (64 Samples)",
+                    "PCSS"
+                };
+                int shadow_mode_index = static_cast<int>(state.shadow_mode);
+                if (ImGui::Combo("Shadow Mode", &shadow_mode_index,
+                                 shadow_mode_names, IM_ARRAYSIZE(shadow_mode_names))) {
+                    state.shadow_mode = static_cast<ShadowMode>(shadow_mode_index);
+                }
+
+                // Shadow map controls
                 ImGui::DragFloat("Light Pos Z", &state.lightPosZ, 0.01f);
                 ImGui::DragFloat("Light Ortho Size", &state.lightOrthoSize, 0.01f);
                 ImGui::DragFloat("Bias", &state.bias, 0.01f);
                 ImGui::DragFloat("Normal Bias", &state.normalBias, 0.01f);
-                ImGui::Checkbox("PCF", &state.pcf);
-                ImGui::DragFloat("PCF Radius", &state.pcf_radius, 0.01f);
-                ImGui::Checkbox("PCF Poisson", &state.pcf_poisson);
+                ImGui::DragFloat("Shadow Radius", &state.shadow_radius, 0.01f);
 
             ImGui::EndTabItem();
         }
@@ -1189,20 +1212,14 @@ void send_shadow_stuff_to_shader(GLuint shaderProgram, State &state) {
         state.normalBias
     );
 
-    // PCF
-    glUniform1i(
-        glGetUniformLocation(shaderProgram, "uPCF"),
-        state.pcf
-    );
-
     glUniform1f(
         glGetUniformLocation(shaderProgram, "uPCFRadius"),
-        state.pcf_radius
+        state.shadow_radius
     );
 
     glUniform1i(
-        glGetUniformLocation(shaderProgram, "uPCFPoisson"),
-        state.pcf_poisson
+        glGetUniformLocation(shaderProgram, "uShadowMode"),
+        static_cast<int>(state.shadow_mode)
     );
 }
 
@@ -1351,9 +1368,8 @@ void init_state(State &state, GLFWwindow* window) {
         .lightPosZ = 10.0f,
         .lightOrthoSize = 2.1f,
         .shininess = 32.0f,
-        .pcf = true,
-        .pcf_radius = 2.5f,
-        .pcf_poisson = true,
+        .shadow_radius = 2.5f,
+        .shadow_mode = ShadowMode::PCSS,
         .window = window,
         .last_mouse_x = 0.0f,
         .camera_rotation_speed = 0.3f,

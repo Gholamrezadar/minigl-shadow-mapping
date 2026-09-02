@@ -14,9 +14,9 @@ uniform sampler2D uShadowMap;
 uniform mat4 uLightSpaceMatrix;
 uniform float uBias;
 uniform float uNormalBias;
-uniform bool uPCF; 
 uniform float uPCFRadius;
-uniform bool uPCFPoisson;
+
+uniform int uShadowMode;
 
 // camera
 uniform vec3 uCameraPos;
@@ -42,7 +42,7 @@ float ShadowCalculation(vec4 fragWorldPos, vec3 N, vec3 L)
     proj = proj * 0.5 + 0.5;
 
     // PCSS
-    if (true) {
+    if (uShadowMode == 4) {
         const int POISSON_SAMPLES = 64;
 
         const vec2 poisson[64] = vec2[](
@@ -158,83 +158,8 @@ float ShadowCalculation(vec4 fragWorldPos, vec3 N, vec3 L)
         return shadow;
     }
 
-    if (false)
-    {
-        float currentDepth = proj.z;
-
-        vec2 texelSize = 1.0 / vec2(textureSize(uShadowMap, 0));
-
-        // ---------------------------------------
-        // STEP 1: BLOCKER SEARCH
-        // ---------------------------------------
-        int blockerCount = 0;
-        float avgBlockerDepth = 0.0;
-
-        // small fixed kernel for blocker search
-        const int BLOCKER_SAMPLES = 16;
-
-        float blockerRadius = uPCFRadius * 2.0;
-
-        for (int i = 0; i < BLOCKER_SAMPLES; ++i)
-        {
-            // simple uniform disk sampling (can be improved later)
-            float angle = float(i) * 6.2831853 / float(BLOCKER_SAMPLES);
-            vec2 dir = vec2(cos(angle), sin(angle));
-
-            vec2 offset = dir * texelSize * blockerRadius;
-
-            float depth = texture(uShadowMap, proj.xy + offset).r;
-
-            // occluder test
-            if (depth < currentDepth - uBias)
-            {
-                avgBlockerDepth += depth;
-                blockerCount++;
-            }
-        }
-
-        // no blockers → fully lit
-        if (blockerCount == 0)
-            return 1.0;
-
-        avgBlockerDepth /= float(blockerCount);
-
-        // ---------------------------------------
-        // STEP 2: PENUMBRA ESTIMATION
-        // ---------------------------------------
-        float penumbra = (currentDepth - avgBlockerDepth) / avgBlockerDepth;
-
-        // scale factor to tune softness
-        penumbra *= uLightSize;
-
-        float filterRadius = penumbra * uPCFRadius;
-
-        // ---------------------------------------
-        // STEP 3: PCF WITH DYNAMIC RADIUS
-        // ---------------------------------------
-        const int PCSS_SAMPLES = 32;
-
-        float shadow = 0.0;
-
-        for (int i = 0; i < PCSS_SAMPLES; ++i)
-        {
-            float angle = float(i) * 6.2831853 / float(PCSS_SAMPLES);
-            vec2 dir = vec2(cos(angle), sin(angle));
-
-            vec2 offset = dir * texelSize * filterRadius;
-
-            float depth = texture(uShadowMap, proj.xy + offset).r;
-
-            shadow += (currentDepth > depth + uBias) ? 0.0 : 1.0;
-        }
-
-        shadow /= float(PCSS_SAMPLES);
-
-        return shadow;
-    }
-
-    // No PCF
-    if(!uPCF) {
+    // Hard Shadow
+    if (uShadowMode == 0) {
         float closestDepth = texture(uShadowMap, proj.xy).r;
         float currentDepth = proj.z;
         float shadow = currentDepth > closestDepth + uBias ? 0.0 : 1.0;
@@ -242,7 +167,7 @@ float ShadowCalculation(vec4 fragWorldPos, vec3 N, vec3 L)
     }
 
     // 5 x 5 kernel PCF
-    if(uPCF && !uPCFPoisson) {
+    if (uShadowMode == 1) {
         float shadow = 0.0;
         vec2 texelSize = 1.0 / vec2(textureSize(uShadowMap, 0));
         float currentDepth = proj.z;
@@ -261,7 +186,7 @@ float ShadowCalculation(vec4 fragWorldPos, vec3 N, vec3 L)
     }
 
     // 16 sample poisson PCF
-    if (uPCF && uPCFPoisson) {
+    if (uShadowMode == 2) {
         const vec2 poisson[16] = vec2[](
             vec2(-0.94201624, -0.39906216),
             vec2( 0.94558609, -0.76890725),
@@ -303,7 +228,7 @@ float ShadowCalculation(vec4 fragWorldPos, vec3 N, vec3 L)
     }
 
     // 64 sample poisson PCF
-    if (uPCF && uPCFPoisson && false) {
+    if (uShadowMode == 3) {
         const vec2 poisson[64] = vec2[](
             vec2(-0.20247402,  0.15207597),
             vec2( 0.20149906, -0.86408825),
@@ -414,6 +339,8 @@ void main() {
 
     // direct lighting
     vec3 direct = (diffuse + specular) * uLightIntensity;
+
+    // shadow mapping
     direct *= ShadowCalculation(world_pos, N, L);
 
     vec3 color = ambient + direct;
